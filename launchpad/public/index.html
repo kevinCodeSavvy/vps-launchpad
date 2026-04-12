@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>VPS Launchpad</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app">
+    <header>
+      <h1>🚀 VPS Launchpad</h1>
+      <div id="step-indicator"></div>
+    </header>
+
+    <!-- Step 1: Environment -->
+    <section class="step" data-step="environment">
+      <h2>Where are you setting up?</h2>
+      <div class="card-group">
+        <button class="env-card" data-value="vps">
+          <span class="icon">🖥️</span>
+          <strong>VPS / Cloud Server</strong>
+          <small>Linux server — full SSL, admin user, SSH hardening</small>
+        </button>
+        <button class="env-card" data-value="docker-desktop">
+          <span class="icon">🐳</span>
+          <strong>Docker Desktop</strong>
+          <small>Mac or Windows — services at localhost, no domain needed</small>
+        </button>
+      </div>
+    </section>
+
+    <!-- Step 2: Admin User (VPS only) -->
+    <section class="step" data-step="admin-user">
+      <h2>Create Admin User</h2>
+      <p class="hint">A new non-root user will be created and SSH will be hardened.</p>
+      <label>Username
+        <input type="text" id="admin-username" placeholder="deploy" autocomplete="off">
+      </label>
+      <label>Password
+        <input type="password" id="admin-password" placeholder="strong password">
+      </label>
+      <div class="ssh-toggle">
+        <label class="checkbox-label">
+          <input type="checkbox" id="ssh-harden" checked>
+          Apply SSH hardening (disable password auth, disable root login)
+        </label>
+      </div>
+      <div class="nav-buttons">
+        <button class="btn-secondary" data-action="back">← Back</button>
+        <button class="btn-primary" data-action="next">Next →</button>
+      </div>
+    </section>
+
+    <!-- Step 3: Domain (VPS only) -->
+    <section class="step" data-step="domain">
+      <h2>Domain Name</h2>
+      <label>Your domain
+        <input type="text" id="domain" placeholder="yourdomain.com" autocomplete="off">
+      </label>
+      <details class="guide">
+        <summary>How to point DNS to your server</summary>
+        <ol>
+          <li>Log in to your DNS provider</li>
+          <li>Add an A record: <code>* → YOUR_SERVER_IP</code></li>
+          <li>Add an A record: <code>@ → YOUR_SERVER_IP</code></li>
+          <li>Wait 1–5 minutes for DNS propagation</li>
+        </ol>
+      </details>
+      <div class="nav-buttons">
+        <button class="btn-secondary" data-action="back">← Back</button>
+        <button class="btn-primary" data-action="next">Next →</button>
+      </div>
+    </section>
+
+    <!-- Step 4: Cloudflare (VPS only) -->
+    <section class="step" data-step="cloudflare">
+      <h2>Cloudflare API Token</h2>
+      <p class="hint">Used by Caddy to automatically issue SSL certificates via DNS.</p>
+      <label>API Token
+        <input type="password" id="cloudflare-token" placeholder="Cloudflare API token" autocomplete="off">
+      </label>
+      <details class="guide">
+        <summary>How to create a Cloudflare API token</summary>
+        <ol>
+          <li>Go to <strong>dash.cloudflare.com → My Profile → API Tokens</strong></li>
+          <li>Click <strong>Create Token</strong></li>
+          <li>Use the <strong>Edit zone DNS</strong> template</li>
+          <li>Set Zone Resources to your domain</li>
+          <li>Click <strong>Continue → Create Token</strong></li>
+        </ol>
+      </details>
+      <div class="nav-buttons">
+        <button class="btn-secondary" data-action="back">← Back</button>
+        <button class="btn-primary" data-action="next">Next →</button>
+      </div>
+    </section>
+
+    <!-- Step 5: Tailscale -->
+    <section class="step" data-step="tailscale">
+      <h2>Tailscale Auth Key</h2>
+      <p class="hint" id="tailscale-hint">Required for secure mesh networking.</p>
+      <label>Auth Key
+        <input type="password" id="tailscale-key" placeholder="tskey-auth-..." autocomplete="off">
+      </label>
+      <details class="guide">
+        <summary>How to generate a Tailscale auth key</summary>
+        <ol>
+          <li>Go to <strong>tailscale.com/admin/settings/keys</strong></li>
+          <li>Click <strong>Generate auth key</strong></li>
+          <li>Enable <strong>Reusable</strong> and <strong>Ephemeral</strong> (optional)</li>
+          <li>Copy the key</li>
+        </ol>
+      </details>
+      <div class="nav-buttons">
+        <button class="btn-secondary" data-action="back">← Back</button>
+        <button class="btn-primary" data-action="next" id="tailscale-next">Next →</button>
+      </div>
+    </section>
+
+    <!-- Step 6: Choose Modules -->
+    <section class="step" data-step="modules">
+      <h2>Choose Modules</h2>
+      <p class="hint">Select the optional services to install.</p>
+      <div id="module-cards" class="card-group"></div>
+      <div class="nav-buttons">
+        <button class="btn-secondary" data-action="back">← Back</button>
+        <button class="btn-primary" data-action="next">Next →</button>
+      </div>
+    </section>
+
+    <!-- Step 7: API Keys -->
+    <section class="step" data-step="api-keys">
+      <h2>API Keys</h2>
+      <p class="hint">Only fields relevant to your selected modules are shown.</p>
+      <div id="api-key-fields"></div>
+      <div class="nav-buttons">
+        <button class="btn-secondary" data-action="back">← Back</button>
+        <button class="btn-primary" data-action="next">Next →</button>
+      </div>
+    </section>
+
+    <!-- Step 8: Review -->
+    <section class="step" data-step="review">
+      <h2>Review & Deploy</h2>
+      <div id="review-summary"></div>
+      <div class="nav-buttons">
+        <button class="btn-secondary" data-action="back">← Back</button>
+        <button class="btn-deploy" data-action="deploy">🚀 Deploy</button>
+      </div>
+    </section>
+
+    <!-- Step 9: Deploy -->
+    <section class="step" data-step="deploy">
+      <h2>Deploying…</h2>
+      <div id="deploy-log"></div>
+      <div id="deploy-links" class="hidden"></div>
+      <div id="deploy-error" class="hidden error-box"></div>
+      <button id="btn-retry" class="btn-primary hidden" data-action="retry">↩ Retry</button>
+      <button id="btn-done" class="btn-primary hidden" data-action="done">✅ Done — Close Launchpad</button>
+    </section>
+
+    <!-- Management Screen (shown when MANAGE_MODE=true) -->
+    <section class="step" data-step="manage">
+      <h2>Manage Modules</h2>
+      <div id="manage-module-list"></div>
+      <div class="nav-buttons">
+        <button class="btn-deploy" data-action="manage-done">Done</button>
+      </div>
+    </section>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
