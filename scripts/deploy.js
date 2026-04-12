@@ -41,7 +41,7 @@ const CORE_SERVICES = [
  * Health check table keyed by service name.
  */
 const HEALTH_CHECKS = {
-  caddy:          { type: 'docker', timeout: 60 },
+  caddy:          { type: 'running', timeout: 60 },
   tailscale:      { type: 'exec', cmd: ['tailscale', 'status'], timeout: 30 },
   'paperclip-db': { type: 'exec', cmd: ['pg_isready', '-U', 'paperclip', '-d', 'paperclip'], timeout: 30 },
   paperclip:      { type: 'http', url: 'http://paperclip:3100/api/health', timeout: 60 },
