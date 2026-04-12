@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Version tag to release (e.g. v1.2.0). Must be an existing git tag."
+        required: true
+        type: string
+      dry_run:
+        description: "Preview the release without pushing or publishing"
+        required: true
+        type: boolean
+        default: false
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE: ghcr.io/${{ github.repository_owner }}/vps-launchpad
+
+jobs:
+  # ── Edge (canary) ─────────────────────────────────────────────────────────────
+  # Triggered on every push to main. Publishes :edge tag for early adopters.
+
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: launchpad/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: launchpad
+
+      - name: Run tests
+        run: npm test
+        working-directory: launchpad
+
+  publish_edge:
+    name: Publish :edge
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push :edge
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: launchpad/Dockerfile
+          push: true
+          tags: ${{ env.IMAGE }}:edge
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+  # ── Stable release ────────────────────────────────────────────────────────────
+  # Triggered by pushing a v*.*.* tag or via workflow_dispatch.
+
+  publish_stable:
+    name: Publish stable release
+    if: >
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && !inputs.dry_run)
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag || github.ref }}
+
+      - name: Resolve version
+        id: version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ inputs.tag }}"
+          else
+            tag="${GITHUB_REF#refs/tags/}"
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "version=${tag#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push versioned + latest tags
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: launchpad/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:${{ steps.version.outputs.tag }}
+            ${{ env.IMAGE }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.version=${{ steps.version.outputs.version }}
+            org.opencontainers.image.revision=${{ github.sha }}
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.version.outputs.tag }}" \
+            --title "VPS Launchpad ${{ steps.version.outputs.tag }}" \
+            --generate-notes \
+            --latest
+
+  # ── Dry-run preview ───────────────────────────────────────────────────────────
+
+  preview_stable:
+    name: Preview stable release (dry run)
+    if: github.event_name == 'workflow_dispatch' && inputs.dry_run
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.tag }}
+
+      - name: Preview
+        run: |
+          echo "=== DRY RUN: would release ${{ inputs.tag }} ==="
+          echo "Docker tags:"
+          echo "  ghcr.io/${{ github.repository_owner }}/vps-launchpad:${{ inputs.tag }}"
+          echo "  ghcr.io/${{ github.repository_owner }}/vps-launchpad:latest"
+          echo ""
+          echo "GitHub Release title: VPS Launchpad ${{ inputs.tag }}"
+          echo "Release notes: auto-generated from merged PRs since last release"

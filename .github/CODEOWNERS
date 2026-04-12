@@ -1,0 +1,10 @@
+# Default owner for everything
+* @kevinCodeSavvy
+
+# Release infrastructure — changes require maintainer review
+.github/workflows/release.yml @kevinCodeSavvy
+bootstrap.sh @kevinCodeSavvy
+
+# Module configs — affects running services
+core/** @kevinCodeSavvy
+modules/** @kevinCodeSavvy
