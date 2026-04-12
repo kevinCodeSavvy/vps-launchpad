@@ -1,0 +1,85 @@
+{
+    {{#if vps}}
+    # VPS mode: Cloudflare DNS TLS (auto cert via Cloudflare API)
+    {{else}}
+    # Local mode: internal self-signed certs
+    {{/if}}
+}
+
+# ── SearXNG ──────────────────────────────────────────
+s.{{domain}} {
+    reverse_proxy searxng:8080
+    {{#if vps}}
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    {{else}}
+    tls internal
+    {{/if}}
+}
+
+# ── Karakeep ─────────────────────────────────────────
+kk.{{domain}} {
+    reverse_proxy karakeep:3000
+    {{#if vps}}
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    {{else}}
+    tls internal
+    {{/if}}
+}
+
+# ── n8n (included only if n8n module selected) ───────
+{{#if modules.n8n}}
+n8n.{{domain}} {
+    @api path /api/*
+    handle @api {
+        header Access-Control-Allow-Origin "https://{{domain}}"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization, x-n8n-api-key"
+        header Access-Control-Allow-Credentials true
+        @preflight method OPTIONS
+        handle @preflight {
+            respond 204
+        }
+        reverse_proxy tailscale-n8n:5678
+    }
+    reverse_proxy tailscale-n8n:5678
+    {{#if vps}}
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    {{else}}
+    tls internal
+    {{/if}}
+}
+{{/if}}
+
+# ── Paperclip (included only if paperclip module selected) ──
+{{#if modules.paperclip}}
+paperclip.{{domain}} {
+    reverse_proxy paperclip:3100
+    {{#if vps}}
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    {{else}}
+    tls internal
+    {{/if}}
+}
+{{/if}}
+
+# ── Grafana (included only if monitoring module selected) ────
+{{#if modules.monitoring}}
+grafana.{{domain}} {
+    reverse_proxy grafana:3001
+    {{#if vps}}
+    tls {
+        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+    }
+    {{else}}
+    tls internal
+    {{/if}}
+}
+{{/if}}
