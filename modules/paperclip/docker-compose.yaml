@@ -1,0 +1,65 @@
+services:
+  paperclip-db:
+    image: postgres:17-alpine
+    container_name: paperclip-db
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    environment:
+      POSTGRES_USER: paperclip
+      POSTGRES_PASSWORD: paperclip
+      POSTGRES_DB: paperclip
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U paperclip -d paperclip"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    volumes:
+      - paperclip-pgdata:/var/lib/postgresql/data
+    networks:
+      - caddy_default
+
+  paperclip-base:
+    build:
+      context: ./paperclip
+      dockerfile: Dockerfile
+    image: paperclip-paperclip:latest
+    profiles:
+      - build-only
+
+  paperclip:
+    build:
+      context: .
+      dockerfile: Dockerfile.custom
+    container_name: paperclip
+    hostname: paperclip
+    restart: unless-stopped
+    labels:
+      - "com.centurylinklabs.watchtower.enable=false"
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgres://paperclip:paperclip@paperclip-db:5432/paperclip
+      PORT: "3100"
+      HOST: "0.0.0.0"
+      SERVE_UI: "true"
+      PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
+      PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
+      CLAUDE_CONFIG_DIR: /paperclip/.claude
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /paperclip/.claude/projects && chmod -R 777 /paperclip/.claude && exec docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"]
+    volumes:
+      - paperclip-data:/paperclip
+    depends_on:
+      paperclip-db:
+        condition: service_healthy
+    networks:
+      - caddy_default
+
+volumes:
+  paperclip-pgdata:
+  paperclip-data:
+
+networks:
+  caddy_default:
+    name: caddy_default
+    external: true
