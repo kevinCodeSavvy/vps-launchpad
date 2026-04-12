@@ -233,7 +233,8 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   // Use node-pty to spawn with a real PTY so the claude TUI renders correctly.
   // Dimensions match the xterm.js terminal we display in the browser (100x24).
   const pty = require('node-pty');
-  const child = pty.spawn('docker', ['exec', '-it', 'paperclip', 'claude', 'auth', 'login', '--claudeai'], {
+  // Run `claude` directly — the /login flow is the supported interactive auth path.
+  const child = pty.spawn('docker', ['exec', '-it', 'paperclip', 'claude'], {
     name: 'xterm-256color',
     cols: 100,
     rows: 24,
@@ -243,15 +244,34 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   let lineBuffer = '';
   let allOutput = '';
   let awaitingCodeSent = false;
+  let autoLoginSent = false;
+  let autoMethodSent = false;
 
   child.onData((data) => {
     // Send raw PTY data to xterm.js in the browser for proper TUI rendering
     send({ type: 'output', data });
 
-    // Also scan stripped text to detect the auth URL and trigger awaiting_code
+    // Scan stripped text for automation cues and URL detection
     const stripped = stripAnsi(data).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
     allOutput += stripped;
     lineBuffer += stripped;
+
+    // Step 1: Once Claude Code has started (any meaningful output), send /login
+    if (!autoLoginSent && allOutput.trim().length > 20) {
+      autoLoginSent = true;
+      setTimeout(() => { try { child.write('/login\r'); } catch (_) {} }, 1500);
+    }
+
+    // Step 2: When the login method menu appears, select option 1 (Claude subscription)
+    if (!autoMethodSent && /select login method/i.test(allOutput)) {
+      autoMethodSent = true;
+      setTimeout(() => { try { child.write('1\r'); } catch (_) {} }, 500);
+    }
+
+    // Step 4: "Login successful. Press Enter to continue" — auto-press Enter
+    if (/press enter to continue/i.test(allOutput)) {
+      setTimeout(() => { try { child.write('\r'); } catch (_) {} }, 400);
+    }
 
     const lines = lineBuffer.split('\n');
     lineBuffer = lines.pop(); // keep incomplete last line in buffer
@@ -259,7 +279,7 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
-      // Detect the auth URL — code input always follows, so send awaiting_code together
+      // Step 3: Detect the auth URL — show it and prompt for the code
       const urlMatch = t.match(/(https?:\/\/\S{30,})/);
       if (urlMatch && !awaitingCodeSent) {
         awaitingCodeSent = true;

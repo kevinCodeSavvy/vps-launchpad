@@ -331,13 +331,13 @@ function showClaudeAuthStep() {
     <div class="log-line" style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid #334155">
       <strong>🔐 Sign in with your Claude account</strong>
     </div>
-    <div id="claude-auth-starting" class="log-line hint">Starting authentication…</div>
+    <div id="claude-auth-starting" class="log-line hint">Starting Claude — login will begin automatically…</div>
     <div id="claude-auth-url-box" style="display:none;margin:1rem 0;padding:1rem;background:#1e293b;border-radius:8px;border:1px solid #3b82f6">
       <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.85rem">Open this link in your browser to sign in:</p>
       <a id="claude-auth-link" href="#" target="_blank" style="color:#60a5fa;word-break:break-all;font-size:0.875rem"></a>
     </div>
     <div id="claude-auth-code-box" style="display:none;margin:1rem 0;padding:1rem;background:#1e293b;border-radius:8px;border:1px solid #f59e0b">
-      <p style="margin:0 0 0.75rem;color:#94a3b8;font-size:0.85rem">After signing in, claude.ai will show you an <strong style="color:#fbbf24">Authentication Code</strong>. Paste it here:</p>
+      <p style="margin:0 0 0.75rem;color:#94a3b8;font-size:0.85rem">Open the link above, sign in, then paste the <strong style="color:#fbbf24">Authentication Code</strong> shown by claude.ai here:</p>
       <div style="display:flex;gap:0.5rem">
         <input id="claude-auth-code-input" type="text" placeholder="Paste authentication code…"
           style="flex:1;padding:0.5rem 0.75rem;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#f1f5f9;font-size:0.875rem;font-family:monospace">
