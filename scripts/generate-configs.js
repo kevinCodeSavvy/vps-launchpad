@@ -71,10 +71,12 @@ function writeEnvFiles(state, secrets, baseDir) {
     : 'http://localhost:3002';
   writeEnv(envsDir, 'karakeep.env', {
     MEILI_MASTER_KEY: secrets.MEILI_MASTER_KEY,
+    MEILI_ADDR: 'http://karakeep-meilisearch:7700',
     NEXTAUTH_SECRET: secrets.NEXTAUTH_SECRET,
     NEXTAUTH_URL: nextauthUrl,
     POSTGRES_PASSWORD: secrets.KARAKEEP_POSTGRES_PASSWORD,
     DATABASE_URL: `postgresql://karakeep:${secrets.KARAKEEP_POSTGRES_PASSWORD}@karakeep-db:5432/karakeep`,
+    BROWSER_WEB_URL: 'http://karakeep-chrome:9222',
   });
 
   // caddy.env
