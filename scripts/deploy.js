@@ -159,13 +159,6 @@ async function deployStack(state, baseDir, repoRoot, emit) {
   const startedDirs = [];
   const isTestMode = !!state._testMode;
 
-  // Create shared Docker network
-  if (!isTestMode) {
-    try {
-      execSync('docker network create caddy_default 2>/dev/null || true', { stdio: 'pipe' });
-    } catch (_) {}
-  }
-
   for (const group of plan) {
     const { services, parallel, composeDir } = group;
     const absComposeDir = path.join(repoRoot, composeDir);
@@ -196,7 +189,7 @@ async function deployStack(state, baseDir, repoRoot, emit) {
     }
 
     // Real mode: bring up containers (async so event loop stays free during pulls/builds)
-    const composeEnv = { ...process.env, ENV_DIR: path.join(baseDir, 'envs'), DATA_DIR: baseDir };
+    const composeEnv = { ...process.env, ENV_DIR: path.join(baseDir, 'envs'), DATA_DIR: baseDir, COMPOSE_BAKE: '0' };
     try {
       await runComposeUp(absComposeDir, services, composeEnv);
     } catch (err) {
