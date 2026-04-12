@@ -235,8 +235,9 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
       setTimeout(() => { try { child.write('/login\r'); } catch (_) {} }, 1500);
     }
 
-    // Step 2: When the login method menu appears, select option 1 (Claude subscription)
-    if (!autoMethodSent && /select login method/i.test(allOutput)) {
+    // Step 2: When the login method menu appears, select option 1 (Claude subscription).
+    // Match several phrasings claude CLI may use.
+    if (!autoMethodSent && /login method|sign in with|choose.*login|select.*option/i.test(allOutput)) {
       autoMethodSent = true;
       setTimeout(() => { try { child.write('1\r'); } catch (_) {} }, 500);
     }
@@ -246,17 +247,15 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
       setTimeout(() => { try { child.write('\r'); } catch (_) {} }, 400);
     }
 
-    const lines = lineBuffer.split('\n');
-    lineBuffer = lines.pop(); // keep incomplete last line in buffer
-
-    for (const line of lines) {
-      const t = line.trim();
-      if (!t) continue;
-      // Step 3: Detect the auth URL — show it and prompt for the code
-      const urlMatch = t.match(/(https?:\/\/\S{30,})/);
-      if (urlMatch && !awaitingCodeSent) {
+    // Step 3: Detect the auth URL in the full accumulated output (not just
+    // complete lines) — the URL may arrive mid-chunk without a trailing newline.
+    if (!awaitingCodeSent) {
+      const urlMatch = allOutput.match(/(https?:\/\/[^\s)>\]"',]{30,})/);
+      if (urlMatch) {
         awaitingCodeSent = true;
-        send({ type: 'url', url: urlMatch[1] });
+        // Strip any stray trailing punctuation that might have been swept in
+        const cleanUrl = urlMatch[1].replace(/[)>\],"']+$/, '');
+        send({ type: 'url', url: cleanUrl });
         send({ type: 'awaiting_code' });
       }
     }
