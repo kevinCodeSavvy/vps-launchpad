@@ -6,8 +6,7 @@ set -euo pipefail
 #   curl -fsSL https://raw.githubusercontent.com/kevinCodeSavvy/vps-launchpad/main/bootstrap.sh | bash
 #   ./bootstrap.sh --manage
 
-REPO="kevinCodeSavvy/vps-launchpad"
-IMAGE="ghcr.io/${REPO}:latest"
+IMAGE="ghcr.io/kevincodesavvy/vps-launchpad:latest"
 MANAGE_MODE=false
 
 for arg in "$@"; do
@@ -87,18 +86,15 @@ docker rm -f vps-launchpad 2>/dev/null || true
 
 # ── Pull and start launchpad container ───────────────────────────────────────
 
-REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
 docker run -d \
   --name vps-launchpad \
   --label "com.centurylinklabs.watchtower.enable=false" \
   -p 8888:8888 \
   -v /var/run/docker.sock:/var/run/docker.sock \
   -v "$BASE_DIR:/data" \
-  -v "$REPO_DIR:/repo:ro" \
   -e SESSION_TOKEN="$SESSION_TOKEN" \
   -e BASE_DIR="/data" \
-  -e REPO_ROOT="/repo" \
+  -e REPO_ROOT="/app" \
   -e MANAGE_MODE="$MANAGE_MODE" \
   -e PORT=8888 \
   "$IMAGE"
