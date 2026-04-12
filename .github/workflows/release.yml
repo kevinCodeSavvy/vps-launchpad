@@ -24,7 +24,7 @@ concurrency:
 
 env:
   REGISTRY: ghcr.io
-  IMAGE: ghcr.io/${{ github.repository_owner }}/vps-launchpad
+  IMAGE: ghcr.io/kevincodesavvy/vps-launchpad
 
 jobs:
   # ── Edge (canary) ─────────────────────────────────────────────────────────────
@@ -173,8 +173,8 @@ jobs:
         run: |
           echo "=== DRY RUN: would release ${{ inputs.tag }} ==="
           echo "Docker tags:"
-          echo "  ghcr.io/${{ github.repository_owner }}/vps-launchpad:${{ inputs.tag }}"
-          echo "  ghcr.io/${{ github.repository_owner }}/vps-launchpad:latest"
+          echo "  ghcr.io/kevincodesavvy/vps-launchpad:${{ inputs.tag }}"
+          echo "  ghcr.io/kevincodesavvy/vps-launchpad:latest"
           echo ""
           echo "GitHub Release title: VPS Launchpad ${{ inputs.tag }}"
           echo "Release notes: auto-generated from merged PRs since last release"
