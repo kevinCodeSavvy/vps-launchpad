@@ -1,0 +1,196 @@
+'use strict';
+
+const { execSync } = require('child_process');
+const fs = require('fs');
+const path = require('path');
+
+/**
+ * Generate a cryptographically random secret using openssl.
+ * @returns {string}
+ */
+function generateSecret() {
+  return execSync('openssl rand -base64 36').toString().trim();
+}
+
+/**
+ * Ensure all required secrets exist in state, generating any that are missing.
+ * Returns a flat secrets object (does not mutate state).
+ * @param {object} state - setup-state.json contents
+ * @returns {object} secrets
+ */
+function ensureSecrets(state) {
+  const existing = state.secrets || {};
+  const secrets = { ...existing };
+
+  const coreSecrets = ['SEARXNG_SECRET', 'MEILI_MASTER_KEY', 'NEXTAUTH_SECRET', 'KARAKEEP_POSTGRES_PASSWORD'];
+  for (const key of coreSecrets) {
+    if (!secrets[key]) secrets[key] = generateSecret();
+  }
+
+  if (state.modules && state.modules.paperclip) {
+    if (!secrets.BETTER_AUTH_SECRET) secrets.BETTER_AUTH_SECRET = generateSecret();
+  }
+
+  return secrets;
+}
+
+/**
+ * Write a key=value .env file.
+ * @param {string} dir
+ * @param {string} filename
+ * @param {object} vars
+ */
+function writeEnv(dir, filename, vars) {
+  const content = Object.entries(vars)
+    .map(([k, v]) => `${k}=${v}`)
+    .join('\n') + '\n';
+  fs.writeFileSync(path.join(dir, filename), content, 'utf8');
+}
+
+/**
+ * Write per-service .env files to {baseDir}/envs/.
+ * @param {object} state
+ * @param {object} secrets
+ * @param {string} baseDir - ~/.vps-launchpad/ path
+ */
+function writeEnvFiles(state, secrets, baseDir) {
+  const envsDir = path.join(baseDir, 'envs');
+  fs.mkdirSync(envsDir, { recursive: true });
+
+  const isVps = state.env === 'vps';
+  const domain = state.domain || 'localhost';
+
+  // searxng.env
+  writeEnv(envsDir, 'searxng.env', {
+    SEARXNG_SECRET_KEY: secrets.SEARXNG_SECRET,
+  });
+
+  // karakeep.env
+  const nextauthUrl = isVps
+    ? `https://karakeep.${domain}`
+    : 'http://localhost:3002';
+  writeEnv(envsDir, 'karakeep.env', {
+    MEILI_MASTER_KEY: secrets.MEILI_MASTER_KEY,
+    NEXTAUTH_SECRET: secrets.NEXTAUTH_SECRET,
+    NEXTAUTH_URL: nextauthUrl,
+    POSTGRES_PASSWORD: secrets.KARAKEEP_POSTGRES_PASSWORD,
+    DATABASE_URL: `postgresql://karakeep:${secrets.KARAKEEP_POSTGRES_PASSWORD}@karakeep-db:5432/karakeep`,
+  });
+
+  // caddy.env
+  writeEnv(envsDir, 'caddy.env', {
+    CLOUDFLARE_API_TOKEN: isVps ? (state.cloudflareToken || '') : '',
+  });
+
+  // tailscale.env
+  writeEnv(envsDir, 'tailscale.env', {
+    TS_AUTHKEY: state.tailscaleAuthKey || '',
+    TS_USERSPACE: isVps ? 'false' : 'true',
+  });
+
+  // n8n.env (optional)
+  if (state.modules && state.modules.n8n) {
+    const n8nEnv = state.moduleEnv && state.moduleEnv.n8n ? { ...state.moduleEnv.n8n } : {};
+    n8nEnv.N8N_HOST = isVps ? `n8n.${domain}` : 'localhost';
+    writeEnv(envsDir, 'n8n.env', n8nEnv);
+  }
+
+  // paperclip.env (optional)
+  if (state.modules && state.modules.paperclip) {
+    const pcEnv = state.moduleEnv && state.moduleEnv.paperclip ? { ...state.moduleEnv.paperclip } : {};
+    pcEnv.BETTER_AUTH_SECRET = secrets.BETTER_AUTH_SECRET;
+    writeEnv(envsDir, 'paperclip.env', pcEnv);
+  }
+}
+
+/**
+ * Render a Caddyfile from a template with {{#if KEY}}...{{/if KEY}} blocks
+ * and {TOKEN} substitutions (uppercase tokens only, to avoid matching
+ * Caddyfile directives like {env.CLOUDFLARE_API_TOKEN}).
+ * @param {string} template - raw template text
+ * @param {object} vars - { vps: bool, n8n: bool, DOMAIN: string, ... }
+ * @returns {string}
+ */
+function renderCaddyfile(template, vars) {
+  // Process conditional blocks: {{#if KEY}}...{{/if KEY}}
+  let result = template.replace(
+    /\{\{#if (\w+)\}\}([\s\S]*?)\{\{\/if \1\}\}/g,
+    (_, key, content) => (vars[key] ? content : '')
+  );
+
+  // Substitute {TOKEN} placeholders (uppercase letters and underscores only)
+  result = result.replace(/\{([A-Z_]+)\}/g, (_, key) =>
+    vars[key] !== undefined ? vars[key] : `{${key}}`
+  );
+
+  // Collapse multiple blank lines left by removed blocks
+  result = result.replace(/\n{3,}/g, '\n\n').trim();
+
+  return result;
+}
+
+/**
+ * Render the real Caddyfile template which uses {{#if vps}}...{{else}}...{{/if}}
+ * and {{domain}} (lowercase double-brace) token syntax.
+ * @param {string} template
+ * @param {object} vars - { vps: bool, modules: object, domain: string, ... }
+ * @returns {string}
+ */
+function renderRealCaddyfile(template, vars) {
+  // Process {{#if KEY}}...{{else}}...{{/if}} blocks
+  let result = template.replace(
+    /\{\{#if (\w+(?:\.\w+)?)\}\}([\s\S]*?)(?:\{\{else\}\}([\s\S]*?))?\{\{\/if\}\}/g,
+    (_, key, ifContent, elseContent) => {
+      // Support dot notation like modules.n8n
+      const val = key.split('.').reduce((obj, k) => (obj && obj[k] !== undefined ? obj[k] : undefined), vars);
+      return val ? ifContent : (elseContent || '');
+    }
+  );
+
+  // Substitute {{token}} placeholders
+  result = result.replace(/\{\{(\w+(?:\.\w+)?)\}\}/g, (_, key) => {
+    const val = key.split('.').reduce((obj, k) => (obj && obj[k] !== undefined ? obj[k] : undefined), vars);
+    return val !== undefined ? val : `{{${key}}}`;
+  });
+
+  // Collapse multiple blank lines
+  result = result.replace(/\n{3,}/g, '\n\n').trim();
+
+  return result;
+}
+
+/**
+ * Main entry point. Reads Caddyfile.template, generates secrets, writes all config files.
+ * @param {object} state - setup-state.json contents
+ * @param {string} baseDir - ~/.vps-launchpad/ working directory
+ * @param {string} repoRoot - absolute path to the vps-launchpad repo root
+ * @returns {{ secrets: object }}
+ */
+function generateConfigs(state, baseDir, repoRoot) {
+  const secrets = ensureSecrets(state);
+
+  // Write all .env files
+  writeEnvFiles(state, secrets, baseDir);
+
+  // Render and write Caddyfile
+  const templatePath = path.join(repoRoot, 'core', 'caddy', 'Caddyfile.template');
+  const template = fs.readFileSync(templatePath, 'utf8');
+  const isVps = state.env === 'vps';
+  const caddyVars = {
+    vps: isVps,
+    docker_desktop: !isVps,
+    modules: {
+      n8n: !!(state.modules && state.modules.n8n),
+      paperclip: !!(state.modules && state.modules.paperclip),
+      monitoring: !!(state.modules && state.modules.monitoring),
+    },
+    domain: state.domain || 'localhost',
+    DOMAIN: state.domain || 'localhost',
+  };
+  const caddyfile = renderRealCaddyfile(template, caddyVars);
+  fs.writeFileSync(path.join(baseDir, 'Caddyfile'), caddyfile, 'utf8');
+
+  return { secrets };
+}
+
+module.exports = { generateSecret, ensureSecrets, writeEnvFiles, renderCaddyfile, generateConfigs };
