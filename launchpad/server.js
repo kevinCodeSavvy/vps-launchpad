@@ -272,6 +272,7 @@ app.post('/api/modules/paperclip/claude-auth/code', requireAuth, (req, res) => {
   if (!claudeAuthChild) return res.status(409).json({ error: 'No active auth session' });
   try {
     claudeAuthChild.stdin.write(code + '\n');
+    claudeAuthChild.stdin.end();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
