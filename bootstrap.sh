@@ -86,6 +86,9 @@ docker rm -f vps-launchpad 2>/dev/null || true
 
 # ── Pull and start launchpad container ───────────────────────────────────────
 
+echo "Pulling latest image..."
+docker pull "$IMAGE"
+
 docker run -d \
   --name vps-launchpad \
   --label "com.centurylinklabs.watchtower.enable=false" \
