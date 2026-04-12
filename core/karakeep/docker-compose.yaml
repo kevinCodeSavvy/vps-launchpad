@@ -1,0 +1,43 @@
+services:
+  karakeep-web:
+    image: ghcr.io/karakeep-app/karakeep:release
+    container_name: karakeep
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - karakeep-data:/data
+    networks:
+      - caddy_default
+    depends_on:
+      - karakeep-chrome
+      - karakeep-meilisearch
+
+  karakeep-chrome:
+    image: gcr.io/chromium-browser-snapshots/chromium:latest
+    container_name: karakeep-chrome
+    restart: unless-stopped
+    init: true
+    networks:
+      - caddy_default
+
+  karakeep-meilisearch:
+    image: getmeili/meilisearch:v1.11.3
+    container_name: karakeep-meilisearch
+    restart: unless-stopped
+    environment:
+      - MEILI_NO_ANALYTICS=true
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+    volumes:
+      - karakeep-meilisearch:/meili_data
+    networks:
+      - caddy_default
+
+volumes:
+  karakeep-data:
+  karakeep-meilisearch:
+
+networks:
+  caddy_default:
+    name: caddy_default
+    external: true
