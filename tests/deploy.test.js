@@ -1,6 +1,7 @@
 'use strict';
 
 const { buildDeployPlan, CORE_SERVICES } = require('../scripts/deploy');
+const { pollHealthCheck } = require('../scripts/deploy');
 
 describe('buildDeployPlan', () => {
   test('core services always included', () => {
@@ -34,4 +35,17 @@ describe('buildDeployPlan', () => {
     const monGroup = plan.find(g => g.services.includes('grafana'));
     expect(monGroup.parallel).toBe(true);
   });
+});
+
+describe('pollHealthCheck', () => {
+  test('resolves immediately for "running" type (fallback)', async () => {
+    await expect(pollHealthCheck('watchtower', { type: 'running', timeout: 5 }))
+      .resolves.toBe(true);
+  }, 10000);
+
+  test('rejects for http check when URL is unreachable within short timeout', async () => {
+    await expect(
+      pollHealthCheck('fake-service', { type: 'http', url: 'http://127.0.0.1:19999/health', timeout: 3 })
+    ).rejects.toThrow();
+  }, 8000);
 });
