@@ -19,23 +19,11 @@ services:
     networks:
       - caddy_default
 
-  paperclip-base:
-    build:
-      context: ./paperclip
-      dockerfile: Dockerfile
-    image: paperclip-paperclip:latest
-    profiles:
-      - build-only
-
   paperclip:
-    build:
-      context: .
-      dockerfile: Dockerfile.custom
+    image: ghcr.io/paperclipai/paperclip:latest
     container_name: paperclip
     hostname: paperclip
     restart: unless-stopped
-    labels:
-      - "com.centurylinklabs.watchtower.enable=false"
     env_file:
       - ${ENV_DIR}/paperclip.env
     environment:
