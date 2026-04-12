@@ -344,7 +344,17 @@ function showClaudeAuthStep() {
       </div>
       <div id="claude-auth-code-err" style="display:none;color:#ef4444;font-size:0.8rem;margin-top:0.5rem"></div>
     </div>
-    <div id="claude-auth-waiting" style="display:none" class="hint">Verifying authentication code…</div>
+    <div id="claude-auth-terminal" style="display:none;margin:1rem 0">
+      <div id="claude-auth-output" style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:0.75rem;font-family:monospace;font-size:0.8rem;color:#94a3b8;max-height:160px;overflow-y:auto;white-space:pre-wrap;margin-bottom:0.5rem"></div>
+      <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.8rem">Respond to each prompt, or press <strong style="color:#f1f5f9">Send</strong> to press Enter:</p>
+      <div style="display:flex;gap:0.5rem">
+        <input id="claude-auth-prompt-input" type="text" placeholder="(press Send to press Enter)"
+          onkeydown="if(event.key==='Enter'){sendClaudeAuthInput();}"
+          style="flex:1;padding:0.5rem 0.75rem;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#f1f5f9;font-size:0.875rem;font-family:monospace">
+        <button id="claude-auth-prompt-btn" onclick="sendClaudeAuthInput()"
+          style="padding:0.5rem 1rem;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.875rem">Send</button>
+      </div>
+    </div>
     <div id="claude-auth-ok" style="display:none;color:#22c55e;padding:0.5rem 0">✅ Authenticated — Paperclip is ready.</div>
     <div id="claude-auth-err" style="display:none;color:#ef4444;padding:0.5rem 0"></div>`;
   log.appendChild(section);
@@ -366,17 +376,23 @@ function showClaudeAuthStep() {
     } else if (event.type === 'awaiting_code') {
       document.getElementById('claude-auth-code-box').style.display = 'block';
       document.getElementById('claude-auth-code-input').focus();
+    } else if (event.type === 'output') {
+      const out = document.getElementById('claude-auth-output');
+      if (out) {
+        out.textContent += event.text + '\n';
+        out.scrollTop = out.scrollHeight;
+      }
     } else if (event.type === 'done') {
       evtSource.close();
-      document.getElementById('claude-auth-waiting').style.display = 'none';
       document.getElementById('claude-auth-url-box').style.display = 'none';
       document.getElementById('claude-auth-code-box').style.display = 'none';
+      document.getElementById('claude-auth-terminal').style.display = 'none';
       document.getElementById('claude-auth-ok').style.display = 'block';
       renderDeployLinks(state);
       document.getElementById('btn-done').classList.remove('hidden');
     } else if (event.type === 'error') {
       evtSource.close();
-      document.getElementById('claude-auth-waiting').style.display = 'none';
+      document.getElementById('claude-auth-terminal').style.display = 'none';
       document.getElementById('claude-auth-code-box').style.display = 'none';
       const errEl = document.getElementById('claude-auth-err');
       errEl.textContent = event.message;
@@ -405,15 +421,31 @@ async function submitClaudeAuthCode() {
   errEl.style.display = 'none';
   try {
     await api('POST', '/api/modules/paperclip/claude-auth/code', { code });
-    // Code submitted — show waiting indicator; SSE will fire 'done' or 'error'
+    // Code submitted — show the interactive terminal for subsequent prompts
     document.getElementById('claude-auth-code-box').style.display = 'none';
-    document.getElementById('claude-auth-waiting').style.display = 'block';
+    document.getElementById('claude-auth-terminal').style.display = 'block';
+    document.getElementById('claude-auth-prompt-input').focus();
   } catch (err) {
     errEl.textContent = `Failed to submit code: ${err.message}`;
     errEl.style.display = 'block';
     btn.disabled = false;
     btn.textContent = 'Submit';
   }
+}
+
+async function sendClaudeAuthInput() {
+  const input = document.getElementById('claude-auth-prompt-input');
+  const btn = document.getElementById('claude-auth-prompt-btn');
+  const text = input.value;
+  btn.disabled = true;
+  try {
+    await api('POST', '/api/modules/paperclip/claude-auth/input', { text });
+    input.value = '';
+    input.focus();
+  } catch (err) {
+    // Session may have ended (done/error already fired) — silently ignore
+  }
+  btn.disabled = false;
 }
 
 function renderDeployLinks(st) {

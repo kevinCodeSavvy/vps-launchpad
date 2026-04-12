@@ -228,6 +228,7 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
 
   let buffer = '';
   let allOutput = '';
+  let awaitingCodeSent = false;
   function processChunk(chunk) {
     const str = chunk.toString();
     allOutput += str;
@@ -240,9 +241,18 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
       const urlMatch = trimmed.match(/visit:\s*(https?:\/\/\S+)/i);
       if (urlMatch) {
         send({ type: 'url', url: urlMatch[1] });
-        // Signal to the UI that it should now prompt for the auth code
-        send({ type: 'awaiting_code' });
+        if (!awaitingCodeSent) {
+          awaitingCodeSent = true;
+          send({ type: 'awaiting_code' });
+        }
+      } else {
+        // Relay all other output to the UI so the user can see prompts
+        send({ type: 'output', text: trimmed });
       }
+    }
+    // Also relay any partial line still in the buffer (prompts without newline)
+    if (buffer.trim()) {
+      send({ type: 'output', text: buffer.trim() });
     }
   }
 
@@ -266,13 +276,26 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   });
 });
 
+// Send the authentication code (initial paste-back)
 app.post('/api/modules/paperclip/claude-auth/code', requireAuth, (req, res) => {
   const code = (req.body && req.body.code || '').trim();
   if (!code) return res.status(400).json({ error: 'Missing code' });
   if (!claudeAuthChild) return res.status(409).json({ error: 'No active auth session' });
   try {
     claudeAuthChild.stdin.write(code + '\n');
-    claudeAuthChild.stdin.end();
+    // Do NOT close stdin — there are further interactive prompts after the code
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Send a line of input to the running auth process (for subsequent prompts)
+app.post('/api/modules/paperclip/claude-auth/input', requireAuth, (req, res) => {
+  const text = (req.body && req.body.text != null) ? req.body.text : '';
+  if (!claudeAuthChild) return res.status(409).json({ error: 'No active auth session' });
+  try {
+    claudeAuthChild.stdin.write(text + '\n');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
