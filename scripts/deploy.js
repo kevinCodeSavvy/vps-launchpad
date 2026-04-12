@@ -33,7 +33,7 @@ const CORE_SERVICES = [
   { services: ['tailscale'], parallel: false, composeDir: 'core/tailscale' },
   { services: ['watchtower'], parallel: false, composeDir: 'core/watchtower' },
   { services: ['searxng'],   parallel: false, composeDir: 'core/searxng' },
-  { services: ['karakeep'],  parallel: false, composeDir: 'core/karakeep' },
+  { services: ['karakeep-web', 'karakeep-chrome', 'karakeep-meilisearch'], parallel: false, composeDir: 'core/karakeep' },
   { services: ['cadvisor'],  parallel: false, composeDir: 'core/cadvisor' },
 ];
 
