@@ -1,3 +1,6 @@
 modules/paperclip/paperclip/node_modules/
 modules/paperclip/paperclip/**/node_modules/
 modules/paperclip/paperclip/**/dist/
+
+# Local env files (copy from example.env to configure)
+**/.env
