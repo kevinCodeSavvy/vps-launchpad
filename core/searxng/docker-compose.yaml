@@ -6,7 +6,7 @@ services:
     env_file:
       - ${ENV_DIR}/searxng.env
     volumes:
-      - ./config:/etc/searxng:rw
+      - ${DATA_DIR}/configs/searxng:/etc/searxng:rw
     networks:
       - caddy_default
 

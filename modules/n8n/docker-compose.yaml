@@ -35,7 +35,7 @@ services:
       - N8N_VERSION_NOTIFICATIONS_ENABLED=false
     volumes:
       - n8n-data:/home/node/.n8n
-      - ./local_files:/files
+      - ${DATA_DIR}/configs/n8n/local_files:/files
     network_mode: "service:tailscale-n8n"
     depends_on:
       - tailscale-n8n

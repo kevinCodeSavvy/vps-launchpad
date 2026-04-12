@@ -136,6 +136,36 @@ function renderCaddyfile(template, vars) {
 }
 
 /**
+ * Copy static config files from the repo into baseDir/configs/ so that the
+ * host Docker daemon can bind-mount them into service containers. Compose files
+ * reference these paths via ${DATA_DIR}/configs/... where DATA_DIR is the real
+ * host path (HOST_DATA_DIR, e.g. ~/.vps-launchpad).
+ * @param {string} repoRoot
+ * @param {string} baseDir
+ */
+function copyConfigFiles(repoRoot, baseDir) {
+  const dst = path.join(baseDir, 'configs');
+
+  // searxng — entire config directory
+  const searxngDst = path.join(dst, 'searxng');
+  fs.mkdirSync(searxngDst, { recursive: true });
+  fs.cpSync(path.join(repoRoot, 'core', 'searxng', 'config'), searxngDst, { recursive: true });
+
+  // monitoring — individual config files
+  const monitoringDst = path.join(dst, 'monitoring');
+  fs.mkdirSync(monitoringDst, { recursive: true });
+  for (const f of ['prometheus.yml', 'loki-config.yaml', 'promtail-config.yaml']) {
+    fs.copyFileSync(
+      path.join(repoRoot, 'modules', 'monitoring', f),
+      path.join(monitoringDst, f)
+    );
+  }
+
+  // n8n — local_files is an empty writable directory used at runtime
+  fs.mkdirSync(path.join(dst, 'n8n', 'local_files'), { recursive: true });
+}
+
+/**
  * Main entry point. Reads Caddyfile.template, generates secrets, writes all config files.
  * @param {object} state - setup-state.json contents
  * @param {string} baseDir - ~/.vps-launchpad/ working directory
@@ -147,6 +177,9 @@ function generateConfigs(state, baseDir, repoRoot) {
 
   // Write all .env files
   writeEnvFiles(state, secrets, baseDir);
+
+  // Copy static config files so the host daemon can bind-mount them
+  copyConfigFiles(repoRoot, baseDir);
 
   // Render and write Caddyfile
   const templatePath = path.join(repoRoot, 'core', 'caddy', 'Caddyfile.template');

@@ -18,7 +18,7 @@ services:
     container_name: prometheus
     restart: unless-stopped
     volumes:
-      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ${DATA_DIR}/configs/monitoring/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - prometheus-data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
@@ -34,7 +34,7 @@ services:
     ports:
       - "3100:3100"
     volumes:
-      - ./loki-config.yaml:/etc/loki/local-config.yaml
+      - ${DATA_DIR}/configs/monitoring/loki-config.yaml:/etc/loki/local-config.yaml
       - loki-data:/loki
     command: -config.file=/etc/loki/local-config.yaml
     networks:
@@ -45,7 +45,7 @@ services:
     container_name: promtail
     restart: unless-stopped
     volumes:
-      - ./promtail-config.yaml:/etc/promtail/config.yml
+      - ${DATA_DIR}/configs/monitoring/promtail-config.yaml:/etc/promtail/config.yml
       - /var/lib/docker/containers:/var/lib/docker/containers:ro
       - /var/run/docker.sock:/var/run/docker.sock
     command: -config.file=/etc/promtail/config.yml
