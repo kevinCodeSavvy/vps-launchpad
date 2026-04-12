@@ -204,7 +204,11 @@ async function deployStack(state, baseDir, repoRoot, emit) {
     }
 
     // Real mode: bring up containers (async so event loop stays free during pulls/builds)
-    const composeEnv = { ...process.env, ENV_DIR: path.join(baseDir, 'envs'), DATA_DIR: baseDir, COMPOSE_BAKE: '0' };
+    // When running inside the launchpad container, baseDir is the container path (/data).
+    // Docker Compose bind mounts are resolved by the HOST daemon, so we must pass the
+    // real host path. HOST_DATA_DIR is injected by bootstrap.sh for this purpose.
+    const hostDataDir = process.env.HOST_DATA_DIR || baseDir;
+    const composeEnv = { ...process.env, ENV_DIR: path.join(hostDataDir, 'envs'), DATA_DIR: hostDataDir, COMPOSE_BAKE: '0' };
     try {
       await runComposeUp(absComposeDir, services, composeEnv);
     } catch (err) {

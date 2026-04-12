@@ -97,6 +97,7 @@ docker run -d \
   -v "$BASE_DIR:/data" \
   -e SESSION_TOKEN="$SESSION_TOKEN" \
   -e BASE_DIR="/data" \
+  -e HOST_DATA_DIR="$BASE_DIR" \
   -e REPO_ROOT="/app" \
   -e MANAGE_MODE="$MANAGE_MODE" \
   -e PORT=8888 \
