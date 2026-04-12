@@ -1,0 +1,24 @@
+name: n8n
+description: Powerful workflow automation. Connects your apps, APIs, and AI tools with a visual editor.
+icon: "⚡"
+subdomain: n8n
+port: 5678
+env:
+  - key: N8N_HOST
+    label: n8n hostname
+    auto: "n8n.{domain}"
+  - key: WEBHOOK_URL
+    label: Webhook URL
+    auto: "https://n8n.{domain}/"
+  - key: GENERIC_TIMEZONE
+    label: Timezone
+    auto: "{timezone}"
+    guide: "Find your timezone at: https://en.wikipedia.org/wiki/List_of_tz_database_time_zones"
+  - key: N8N_TAILSCALE_AUTH_KEY
+    label: Tailscale auth key for n8n
+    secret: true
+    guide: |
+      1. Go to https://login.tailscale.com/admin/settings/keys
+      2. Click 'Generate auth key'
+      3. Enable 'Reusable'
+      4. Click 'Generate key' and paste here

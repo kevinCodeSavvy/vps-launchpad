@@ -1,0 +1,54 @@
+services:
+  tailscale-n8n:
+    image: tailscale/tailscale:latest
+    container_name: tailscale-n8n
+    hostname: n8n-on-hstgr
+    restart: unless-stopped
+    environment:
+      - TS_USERSPACE=${TS_USERSPACE:-false}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--auth-key file:/run/secrets/tsauthkey
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    ports:
+      - "5678:5678"
+    volumes:
+      - tailscale-n8n-state:/var/lib/tailscale
+    secrets:
+      - tsauthkey
+    networks:
+      - caddy_default
+
+  n8n:
+    image: docker.n8n.io/n8nio/n8n
+    container_name: n8n
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - NODE_ENV=production
+      - N8N_DIAGNOSTICS_ENABLED=false
+      - N8N_VERSION_NOTIFICATIONS_ENABLED=false
+    volumes:
+      - n8n-data:/home/node/.n8n
+      - ./local_files:/files
+    network_mode: "service:tailscale-n8n"
+    depends_on:
+      - tailscale-n8n
+
+secrets:
+  tsauthkey:
+    file: ${N8N_TAILSCALE_AUTH_KEY_FILE:-~/.config/tsauthkey-n8n}
+
+volumes:
+  n8n-data:
+  tailscale-n8n-state:
+
+networks:
+  caddy_default:
+    name: caddy_default
+    external: true
