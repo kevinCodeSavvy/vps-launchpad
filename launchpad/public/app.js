@@ -334,7 +334,17 @@ function showClaudeAuthStep() {
       <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.85rem">Open this link in your browser to sign in:</p>
       <a id="claude-auth-link" href="#" target="_blank" style="color:#60a5fa;word-break:break-all;font-size:0.875rem"></a>
     </div>
-    <div id="claude-auth-waiting" style="display:none" class="hint">Waiting for you to complete sign-in…</div>
+    <div id="claude-auth-code-box" style="display:none;margin:1rem 0;padding:1rem;background:#1e293b;border-radius:8px;border:1px solid #f59e0b">
+      <p style="margin:0 0 0.75rem;color:#94a3b8;font-size:0.85rem">After signing in, claude.ai will show you an <strong style="color:#fbbf24">Authentication Code</strong>. Paste it here:</p>
+      <div style="display:flex;gap:0.5rem">
+        <input id="claude-auth-code-input" type="text" placeholder="Paste authentication code…"
+          style="flex:1;padding:0.5rem 0.75rem;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#f1f5f9;font-size:0.875rem;font-family:monospace">
+        <button id="claude-auth-code-btn" onclick="submitClaudeAuthCode()"
+          style="padding:0.5rem 1rem;background:#f59e0b;color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.875rem">Submit</button>
+      </div>
+      <div id="claude-auth-code-err" style="display:none;color:#ef4444;font-size:0.8rem;margin-top:0.5rem"></div>
+    </div>
+    <div id="claude-auth-waiting" style="display:none" class="hint">Verifying authentication code…</div>
     <div id="claude-auth-ok" style="display:none;color:#22c55e;padding:0.5rem 0">✅ Authenticated — Paperclip is ready.</div>
     <div id="claude-auth-err" style="display:none;color:#ef4444;padding:0.5rem 0"></div>`;
   log.appendChild(section);
@@ -353,17 +363,21 @@ function showClaudeAuthStep() {
       link.href = event.url;
       link.textContent = event.url;
       urlBox.style.display = 'block';
-      document.getElementById('claude-auth-waiting').style.display = 'block';
+    } else if (event.type === 'awaiting_code') {
+      document.getElementById('claude-auth-code-box').style.display = 'block';
+      document.getElementById('claude-auth-code-input').focus();
     } else if (event.type === 'done') {
       evtSource.close();
       document.getElementById('claude-auth-waiting').style.display = 'none';
       document.getElementById('claude-auth-url-box').style.display = 'none';
+      document.getElementById('claude-auth-code-box').style.display = 'none';
       document.getElementById('claude-auth-ok').style.display = 'block';
       renderDeployLinks(state);
       document.getElementById('btn-done').classList.remove('hidden');
     } else if (event.type === 'error') {
       evtSource.close();
       document.getElementById('claude-auth-waiting').style.display = 'none';
+      document.getElementById('claude-auth-code-box').style.display = 'none';
       const errEl = document.getElementById('claude-auth-err');
       errEl.textContent = event.message;
       errEl.style.display = 'block';
@@ -374,6 +388,32 @@ function showClaudeAuthStep() {
   };
 
   evtSource.onerror = () => evtSource.close();
+}
+
+async function submitClaudeAuthCode() {
+  const input = document.getElementById('claude-auth-code-input');
+  const errEl = document.getElementById('claude-auth-code-err');
+  const btn = document.getElementById('claude-auth-code-btn');
+  const code = input.value.trim();
+  if (!code) {
+    errEl.textContent = 'Please paste the authentication code first.';
+    errEl.style.display = 'block';
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Submitting…';
+  errEl.style.display = 'none';
+  try {
+    await api('POST', '/api/modules/paperclip/claude-auth/code', { code });
+    // Code submitted — show waiting indicator; SSE will fire 'done' or 'error'
+    document.getElementById('claude-auth-code-box').style.display = 'none';
+    document.getElementById('claude-auth-waiting').style.display = 'block';
+  } catch (err) {
+    errEl.textContent = `Failed to submit code: ${err.message}`;
+    errEl.style.display = 'block';
+    btn.disabled = false;
+    btn.textContent = 'Submit';
+  }
 }
 
 function renderDeployLinks(st) {

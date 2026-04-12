@@ -193,6 +193,10 @@ function waitForPaperclip(maxWaitMs = 30000) {
   return false;
 }
 
+// Holds the active claude auth child process so the code-input endpoint can
+// write to its stdin. Only one auth session runs at a time.
+let claudeAuthChild = null;
+
 app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -200,6 +204,12 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   res.flushHeaders();
 
   const send = (obj) => { try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch (_) {} };
+
+  // Kill any previous auth session before starting a new one
+  if (claudeAuthChild) {
+    try { claudeAuthChild.kill(); } catch (_) {}
+    claudeAuthChild = null;
+  }
 
   // Wait up to 30s for paperclip container to be ready before attempting auth
   send({ type: 'status', message: 'Waiting for Paperclip to be ready…' });
@@ -210,9 +220,11 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   }
 
   const { spawn } = require('child_process');
-  const child = spawn('docker', ['exec', 'paperclip', 'claude', 'auth', 'login', '--claudeai'], {
-    stdio: ['ignore', 'pipe', 'pipe'],
+  // stdin must be 'pipe' so we can write the authentication code back to the process
+  const child = spawn('docker', ['exec', '-i', 'paperclip', 'claude', 'auth', 'login', '--claudeai'], {
+    stdio: ['pipe', 'pipe', 'pipe'],
   });
+  claudeAuthChild = child;
 
   let buffer = '';
   let allOutput = '';
@@ -226,7 +238,11 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
       const trimmed = line.trim();
       if (!trimmed) continue;
       const urlMatch = trimmed.match(/visit:\s*(https?:\/\/\S+)/i);
-      if (urlMatch) send({ type: 'url', url: urlMatch[1] });
+      if (urlMatch) {
+        send({ type: 'url', url: urlMatch[1] });
+        // Signal to the UI that it should now prompt for the auth code
+        send({ type: 'awaiting_code' });
+      }
     }
   }
 
@@ -234,6 +250,7 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   child.stderr.on('data', processChunk);
 
   child.on('close', (code) => {
+    if (claudeAuthChild === child) claudeAuthChild = null;
     if (code === 0) {
       send({ type: 'done' });
     } else {
@@ -243,7 +260,22 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
     res.end();
   });
 
-  req.on('close', () => { try { child.kill(); } catch (_) {} });
+  req.on('close', () => {
+    if (claudeAuthChild === child) claudeAuthChild = null;
+    try { child.kill(); } catch (_) {}
+  });
+});
+
+app.post('/api/modules/paperclip/claude-auth/code', requireAuth, (req, res) => {
+  const code = (req.body && req.body.code || '').trim();
+  if (!code) return res.status(400).json({ error: 'Missing code' });
+  if (!claudeAuthChild) return res.status(409).json({ error: 'No active auth session' });
+  try {
+    claudeAuthChild.stdin.write(code + '\n');
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 app.post('/api/modules/:id/remove', requireAuth, (req, res) => {
