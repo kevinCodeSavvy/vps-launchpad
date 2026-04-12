@@ -159,6 +159,21 @@ async function deployStack(state, baseDir, repoRoot, emit) {
   const startedDirs = [];
   const isTestMode = !!state._testMode;
 
+  // Remove any pre-existing caddy_default network that wasn't created by Docker Compose.
+  // Previous versions of this script ran `docker network create caddy_default` manually,
+  // which produces a network without the compose label; Compose rejects it on the next run.
+  if (!isTestMode) {
+    try {
+      const label = execSync(
+        `docker network inspect caddy_default --format '{{index .Labels "com.docker.compose.network"}}'`,
+        { stdio: 'pipe' }
+      ).toString().trim().replace(/'/g, '');
+      if (label === '') {
+        execSync('docker network rm caddy_default', { stdio: 'pipe' });
+      }
+    } catch (_) { /* network doesn't exist — nothing to do */ }
+  }
+
   for (const group of plan) {
     const { services, parallel, composeDir } = group;
     const absComposeDir = path.join(repoRoot, composeDir);
