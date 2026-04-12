@@ -255,29 +255,19 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
       const t = line.trim();
       if (!t) continue;
 
-      // Detect the auth URL (long https:// line)
+      // Detect the auth URL (long https:// line) — the code input always
+      // follows immediately, so send awaiting_code at the same time.
       const urlMatch = t.match(/(https?:\/\/\S{30,})/);
       if (urlMatch) {
         send({ type: 'url', url: urlMatch[1] });
+        if (!awaitingCodeSent) {
+          awaitingCodeSent = true;
+          send({ type: 'awaiting_code' });
+        }
         continue;
       }
 
-      // Detect the "paste code here" prompt → tell UI to show code input
-      if (!awaitingCodeSent && /paste code/i.test(t)) {
-        awaitingCodeSent = true;
-        send({ type: 'awaiting_code' });
-      }
-
       send({ type: 'output', text: t });
-    }
-
-    // Check partial buffer for the paste-code prompt (no trailing newline)
-    const partial = lineBuffer.trim();
-    if (!awaitingCodeSent && partial && /paste code/i.test(partial)) {
-      awaitingCodeSent = true;
-      send({ type: 'awaiting_code' });
-      send({ type: 'output', text: partial });
-      lineBuffer = '';
     }
   });
 
