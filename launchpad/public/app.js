@@ -94,12 +94,70 @@ function renderApiKeyFields() {
 
   let anyFields = false;
   for (const [modId, defs] of Object.entries(moduleEnvDefs)) {
-    if (!state.modules || !state.modules[modId] || defs.length === 0) continue;
-    anyFields = true;
+    if (!state.modules || !state.modules[modId]) continue;
+
     const heading = document.createElement('h3');
     heading.textContent = modId.charAt(0).toUpperCase() + modId.slice(1);
     heading.style.cssText = 'font-size:1rem;margin-bottom:0.75rem;color:#94a3b8;';
     container.appendChild(heading);
+
+    if (modId === 'paperclip') {
+      anyFields = true;
+      const savedMethod = (state.moduleEnv && state.moduleEnv.paperclip && state.moduleEnv.paperclip._authMethod) || 'api_key';
+
+      const toggle = document.createElement('div');
+      toggle.style.cssText = 'margin-bottom:1rem;';
+      toggle.innerHTML = `
+        <p class="hint" style="margin-bottom:0.5rem">How would you like to authenticate?</p>
+        <div style="display:flex;gap:1rem;flex-wrap:wrap">
+          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-weight:normal">
+            <input type="radio" name="paperclip-auth" value="api_key" ${savedMethod === 'api_key' ? 'checked' : ''}>
+            API Key
+          </label>
+          <label style="display:flex;align-items:center;gap:0.4rem;cursor:pointer;font-weight:normal">
+            <input type="radio" name="paperclip-auth" value="claude_subscription" ${savedMethod === 'claude_subscription' ? 'checked' : ''}>
+            Claude Subscription (Max / Pro)
+          </label>
+        </div>`;
+      container.appendChild(toggle);
+
+      const keySection = document.createElement('div');
+      keySection.id = 'paperclip-api-key-section';
+      keySection.style.display = savedMethod === 'claude_subscription' ? 'none' : 'block';
+
+      const existingKey = (state.moduleEnv && state.moduleEnv.paperclip && state.moduleEnv.paperclip.ANTHROPIC_API_KEY) || '';
+      const label = document.createElement('label');
+      label.innerHTML = `Anthropic API Key
+        <input type="password" id="modenv-paperclip-ANTHROPIC_API_KEY" value="${existingKey}"
+               placeholder="console.anthropic.com → API Keys" autocomplete="off">`;
+      keySection.appendChild(label);
+
+      const hint = document.createElement('p');
+      hint.className = 'hint';
+      hint.style.marginTop = '-0.75rem';
+      hint.textContent = 'console.anthropic.com → API Keys';
+      keySection.appendChild(hint);
+      container.appendChild(keySection);
+
+      const subHint = document.createElement('p');
+      subHint.id = 'paperclip-subscription-hint';
+      subHint.className = 'hint';
+      subHint.style.display = savedMethod === 'claude_subscription' ? 'block' : 'none';
+      subHint.textContent = 'After deployment, the wizard will generate a sign-in link for you to authenticate with your Claude account.';
+      container.appendChild(subHint);
+
+      toggle.querySelectorAll('input[name="paperclip-auth"]').forEach(radio => {
+        radio.addEventListener('change', () => {
+          const isSub = radio.value === 'claude_subscription';
+          keySection.style.display = isSub ? 'none' : 'block';
+          subHint.style.display = isSub ? 'block' : 'none';
+        });
+      });
+      continue;
+    }
+
+    if (defs.length === 0) continue;
+    anyFields = true;
 
     for (const field of defs) {
       const label = document.createElement('label');
@@ -168,6 +226,10 @@ async function collectStepData(stepId) {
     for (const modId of Object.keys(state.modules || {})) {
       if (!state.modules[modId]) continue;
       updates.moduleEnv[modId] = updates.moduleEnv[modId] || {};
+      if (modId === 'paperclip') {
+        const authRadio = document.querySelector('input[name="paperclip-auth"]:checked');
+        if (authRadio) updates.moduleEnv.paperclip._authMethod = authRadio.value;
+      }
       document.querySelectorAll(`[id^="modenv-${modId}-"]`).forEach(input => {
         const key = input.id.replace(`modenv-${modId}-`, '');
         updates.moduleEnv[modId][key] = input.value;
@@ -241,14 +303,74 @@ async function startDeploy() {
     } else if (event.type === 'done') {
       evtSource.close();
       appendLog('All services running!', 'healthy');
-      renderDeployLinks(state);
-      document.getElementById('btn-done').classList.remove('hidden');
+      const needsClaudeAuth = state.modules && state.modules.paperclip &&
+        state.moduleEnv && state.moduleEnv.paperclip &&
+        state.moduleEnv.paperclip._authMethod === 'claude_subscription';
+      if (needsClaudeAuth) {
+        showClaudeAuthStep();
+      } else {
+        renderDeployLinks(state);
+        document.getElementById('btn-done').classList.remove('hidden');
+      }
     }
   };
 
   evtSource.onerror = () => {
     evtSource.close();
   };
+}
+
+function showClaudeAuthStep() {
+  const log = document.getElementById('deploy-log');
+
+  const section = document.createElement('div');
+  section.innerHTML = `
+    <div class="log-line" style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid #334155">
+      <strong>🔐 Sign in with your Claude account</strong>
+    </div>
+    <div id="claude-auth-starting" class="log-line hint">Starting authentication…</div>
+    <div id="claude-auth-url-box" style="display:none;margin:1rem 0;padding:1rem;background:#1e293b;border-radius:8px;border:1px solid #3b82f6">
+      <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.85rem">Open this link in your browser to sign in:</p>
+      <a id="claude-auth-link" href="#" target="_blank" style="color:#60a5fa;word-break:break-all;font-size:0.875rem"></a>
+    </div>
+    <div id="claude-auth-waiting" style="display:none" class="hint">Waiting for you to complete sign-in…</div>
+    <div id="claude-auth-ok" style="display:none;color:#22c55e;padding:0.5rem 0">✅ Authenticated — Paperclip is ready.</div>
+    <div id="claude-auth-err" style="display:none;color:#ef4444;padding:0.5rem 0"></div>`;
+  log.appendChild(section);
+  log.scrollTop = log.scrollHeight;
+
+  const evtSource = new EventSource(`/api/modules/paperclip/claude-auth?token=${TOKEN}`);
+
+  evtSource.onmessage = (e) => {
+    const event = JSON.parse(e.data);
+    if (event.type === 'url') {
+      document.getElementById('claude-auth-starting').style.display = 'none';
+      const urlBox = document.getElementById('claude-auth-url-box');
+      const link = document.getElementById('claude-auth-link');
+      link.href = event.url;
+      link.textContent = event.url;
+      urlBox.style.display = 'block';
+      document.getElementById('claude-auth-waiting').style.display = 'block';
+    } else if (event.type === 'done') {
+      evtSource.close();
+      document.getElementById('claude-auth-waiting').style.display = 'none';
+      document.getElementById('claude-auth-url-box').style.display = 'none';
+      document.getElementById('claude-auth-ok').style.display = 'block';
+      renderDeployLinks(state);
+      document.getElementById('btn-done').classList.remove('hidden');
+    } else if (event.type === 'error') {
+      evtSource.close();
+      document.getElementById('claude-auth-waiting').style.display = 'none';
+      const errEl = document.getElementById('claude-auth-err');
+      errEl.textContent = event.message;
+      errEl.style.display = 'block';
+      renderDeployLinks(state);
+      document.getElementById('btn-done').classList.remove('hidden');
+    }
+    log.scrollTop = log.scrollHeight;
+  };
+
+  evtSource.onerror = () => evtSource.close();
 }
 
 function renderDeployLinks(st) {

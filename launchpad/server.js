@@ -172,6 +172,45 @@ app.get('/api/config', requireAuth, (_, res) => {
   res.json({ manageMode: MANAGE_MODE });
 });
 
+// ── Paperclip: Claude subscription auth ───────────────────────────────────────
+app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.flushHeaders();
+
+  const send = (obj) => { try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch (_) {} };
+
+  const { spawn } = require('child_process');
+  const child = spawn('docker', ['exec', 'paperclip', 'claude', 'auth', 'login', '--claudeai'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+
+  let buffer = '';
+  function processChunk(chunk) {
+    buffer += chunk.toString();
+    const lines = buffer.split('\n');
+    buffer = lines.pop();
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      const urlMatch = trimmed.match(/visit:\s*(https?:\/\/\S+)/i);
+      if (urlMatch) send({ type: 'url', url: urlMatch[1] });
+    }
+  }
+
+  child.stdout.on('data', processChunk);
+  child.stderr.on('data', processChunk);
+
+  child.on('close', (code) => {
+    if (code === 0) send({ type: 'done' });
+    else send({ type: 'error', message: `Authentication failed (exit code ${code})` });
+    res.end();
+  });
+
+  req.on('close', () => { try { child.kill(); } catch (_) {} });
+});
+
 app.post('/api/modules/:id/remove', requireAuth, (req, res) => {
   const modId = req.params.id;
   const st = readState();

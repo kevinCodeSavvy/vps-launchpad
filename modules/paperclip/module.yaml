@@ -3,6 +3,7 @@ description: AI agent platform. Run Claude agents that can write code, browse th
 icon: "📎"
 subdomain: paperclip
 port: 3100
+claude_subscription_auth: true
 env:
   - key: ANTHROPIC_API_KEY
     label: Anthropic API Key
