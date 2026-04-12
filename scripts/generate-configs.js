@@ -88,6 +88,12 @@ function writeEnvFiles(state, secrets, baseDir) {
     TS_USERSPACE: isVps ? 'false' : 'true',
   });
 
+  // watchtower.env (always written — stub, no required vars)
+  writeEnv(envsDir, 'watchtower.env', {});
+
+  // monitoring.env (always written — stub, no required vars for grafana defaults)
+  writeEnv(envsDir, 'monitoring.env', {});
+
   // n8n.env (optional)
   if (state.modules && state.modules.n8n) {
     const n8nEnv = state.moduleEnv && state.moduleEnv.n8n ? { ...state.moduleEnv.n8n } : {};

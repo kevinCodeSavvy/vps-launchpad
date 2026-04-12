@@ -4,7 +4,7 @@ services:
     container_name: searxng
     restart: unless-stopped
     env_file:
-      - .env
+      - ${ENV_DIR}/searxng.env
     volumes:
       - ./config:/etc/searxng:rw
     networks:

@@ -26,7 +26,7 @@ services:
     container_name: n8n
     restart: unless-stopped
     env_file:
-      - .env
+      - ${ENV_DIR}/n8n.env
     environment:
       - N8N_PORT=5678
       - N8N_PROTOCOL=https

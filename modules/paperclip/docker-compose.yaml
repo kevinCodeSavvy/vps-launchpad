@@ -37,7 +37,7 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
     env_file:
-      - .env
+      - ${ENV_DIR}/paperclip.env
     environment:
       DATABASE_URL: postgres://paperclip:paperclip@paperclip-db:5432/paperclip
       PORT: "3100"

@@ -4,7 +4,7 @@ services:
     container_name: karakeep
     restart: unless-stopped
     env_file:
-      - .env
+      - ${ENV_DIR}/karakeep.env
     volumes:
       - karakeep-data:/data
     networks:

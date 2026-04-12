@@ -7,13 +7,13 @@ services:
     labels:
       - "com.centurylinklabs.watchtower.enable=false"
     env_file:
-      - .env
+      - ${ENV_DIR}/caddy.env
     ports:
       - "80:80"
       - "443:443"
       - "443:443/udp"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${DATA_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
       - caddy-config:/config
     networks:

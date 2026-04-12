@@ -178,7 +178,7 @@ async function deployStack(state, baseDir, repoRoot, emit) {
     try {
       execSync(
         `docker compose --project-directory ${absComposeDir} up -d ${services.join(' ')}`,
-        { stdio: 'pipe', env: { ...process.env, ENV_DIR: path.join(baseDir, 'envs') } }
+        { stdio: 'pipe', env: { ...process.env, ENV_DIR: path.join(baseDir, 'envs'), DATA_DIR: baseDir } }
       );
     } catch (err) {
       const msg = err.stderr ? err.stderr.toString() : err.message;
