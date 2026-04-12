@@ -33,7 +33,7 @@
     <!-- Step 2: Admin User (VPS only) -->
     <section class="step" data-step="admin-user">
       <h2>Create Admin User</h2>
-      <p class="hint">A new non-root user will be created and SSH will be hardened.</p>
+      <p class="hint">Running as root permanently is risky. This creates a dedicated non-root user for day-to-day server management, then locks down SSH so only key-based login is allowed.</p>
       <label>Username
         <input type="text" id="admin-username" placeholder="deploy" autocomplete="off">
       </label>
@@ -55,6 +55,7 @@
     <!-- Step 3: Domain (VPS only) -->
     <section class="step" data-step="domain">
       <h2>Domain Name</h2>
+      <p class="hint">Each service gets its own subdomain (e.g. <code>search.yourdomain.com</code>, <code>paperclip.yourdomain.com</code>). Caddy will automatically issue SSL certificates for all of them — no manual cert management needed.</p>
       <label>Your domain
         <input type="text" id="domain" placeholder="yourdomain.com" autocomplete="off">
       </label>
@@ -76,7 +77,7 @@
     <!-- Step 4: Cloudflare (VPS only) -->
     <section class="step" data-step="cloudflare">
       <h2>Cloudflare API Token</h2>
-      <p class="hint">Used by Caddy to automatically issue SSL certificates via DNS.</p>
+      <p class="hint">Caddy uses this token to prove domain ownership to Let's Encrypt via DNS challenge — meaning SSL certificates are issued automatically, even for subdomains, without any ports needing to be open during setup.</p>
       <label>API Token
         <input type="password" id="cloudflare-token" placeholder="Cloudflare API token" autocomplete="off">
       </label>
@@ -98,8 +99,9 @@
 
     <!-- Step 5: Tailscale -->
     <section class="step" data-step="tailscale">
-      <h2>Tailscale Auth Key</h2>
+      <h2>Tailscale</h2>
       <p class="hint" id="tailscale-hint">Required for secure mesh networking.</p>
+      <p class="hint">Tailscale creates a private, encrypted network between your devices. Once connected, you can reach your server and all its services securely from anywhere — your phone, laptop, or home network — without exposing anything to the public internet.</p>
       <label>Auth Key
         <input type="password" id="tailscale-key" placeholder="tskey-auth-..." autocomplete="off">
       </label>
@@ -121,7 +123,7 @@
     <!-- Step 6: Choose Modules -->
     <section class="step" data-step="modules">
       <h2>Choose Modules</h2>
-      <p class="hint">Select the optional services to install.</p>
+      <p class="hint">These are optional services that install on top of your core setup. Core services (Caddy reverse proxy, Watchtower auto-updates, SearXNG private search, Karakeep bookmark manager) are always included. Select any extras below.</p>
       <div id="module-cards" class="card-group"></div>
       <div class="nav-buttons">
         <button class="btn-secondary" data-action="back">← Back</button>
@@ -132,7 +134,7 @@
     <!-- Step 7: API Keys -->
     <section class="step" data-step="api-keys">
       <h2>API Keys</h2>
-      <p class="hint">Only fields relevant to your selected modules are shown.</p>
+      <p class="hint">Credentials for the modules you selected. These are written to encrypted env files on your server and never leave it. Only fields relevant to your chosen modules are shown.</p>
       <div id="api-key-fields"></div>
       <div class="nav-buttons">
         <button class="btn-secondary" data-action="back">← Back</button>
