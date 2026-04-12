@@ -1,85 +1,87 @@
-{
-    {{#if vps}}
-    # VPS mode: Cloudflare DNS TLS (auto cert via Cloudflare API)
-    {{else}}
-    # Local mode: internal self-signed certs
-    {{/if}}
+{{#if vps}}
+search.{DOMAIN} {
+  tls {
+    dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+  }
+  reverse_proxy searxng:8080
 }
 
-# ── SearXNG ──────────────────────────────────────────
-s.{{domain}} {
-    reverse_proxy searxng:8080
-    {{#if vps}}
-    tls {
-        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    }
-    {{else}}
-    tls internal
-    {{/if}}
+karakeep.{DOMAIN} {
+  tls {
+    dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+  }
+  reverse_proxy karakeep:3000
+}
+{{/if vps}}
+
+{{#if docker_desktop}}
+:8080 {
+  tls internal
+  reverse_proxy searxng:8080
 }
 
-# ── Karakeep ─────────────────────────────────────────
-kk.{{domain}} {
-    reverse_proxy karakeep:3000
-    {{#if vps}}
-    tls {
-        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    }
-    {{else}}
-    tls internal
-    {{/if}}
+:3002 {
+  tls internal
+  reverse_proxy karakeep:3000
 }
+{{/if docker_desktop}}
 
-# ── n8n (included only if n8n module selected) ───────
-{{#if modules.n8n}}
-n8n.{{domain}} {
-    @api path /api/*
-    handle @api {
-        header Access-Control-Allow-Origin "https://{{domain}}"
-        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization, x-n8n-api-key"
-        header Access-Control-Allow-Credentials true
-        @preflight method OPTIONS
-        handle @preflight {
-            respond 204
-        }
-        reverse_proxy tailscale-n8n:5678
+{{#if n8n_vps}}
+n8n.{DOMAIN} {
+  tls {
+    dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+  }
+  @api path /api/*
+  handle @api {
+    header Access-Control-Allow-Origin "https://{DOMAIN}"
+    header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+    header Access-Control-Allow-Headers "Content-Type, Authorization, x-n8n-api-key"
+    header Access-Control-Allow-Credentials true
+    @preflight method OPTIONS
+    handle @preflight {
+      respond 204
     }
     reverse_proxy tailscale-n8n:5678
-    {{#if vps}}
-    tls {
-        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    }
-    {{else}}
-    tls internal
-    {{/if}}
+  }
+  reverse_proxy tailscale-n8n:5678
 }
-{{/if}}
+{{/if n8n_vps}}
 
-# ── Paperclip (included only if paperclip module selected) ──
-{{#if modules.paperclip}}
-paperclip.{{domain}} {
-    reverse_proxy paperclip:3100
-    {{#if vps}}
-    tls {
-        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    }
-    {{else}}
-    tls internal
-    {{/if}}
+{{#if n8n_docker_desktop}}
+:5678 {
+  tls internal
+  reverse_proxy tailscale-n8n:5678
 }
-{{/if}}
+{{/if n8n_docker_desktop}}
 
-# ── Grafana (included only if monitoring module selected) ────
-{{#if modules.monitoring}}
-grafana.{{domain}} {
-    reverse_proxy grafana:3001
-    {{#if vps}}
-    tls {
-        dns cloudflare {env.CLOUDFLARE_API_TOKEN}
-    }
-    {{else}}
-    tls internal
-    {{/if}}
+{{#if paperclip_vps}}
+paperclip.{DOMAIN} {
+  tls {
+    dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+  }
+  reverse_proxy paperclip:3100
 }
-{{/if}}
+{{/if paperclip_vps}}
+
+{{#if paperclip_docker_desktop}}
+:3100 {
+  tls internal
+  reverse_proxy paperclip:3100
+}
+{{/if paperclip_docker_desktop}}
+
+{{#if monitoring_vps}}
+grafana.{DOMAIN} {
+  tls {
+    dns cloudflare {env.CLOUDFLARE_API_TOKEN}
+  }
+  reverse_proxy grafana:3001
+}
+{{/if monitoring_vps}}
+
+{{#if monitoring_docker_desktop}}
+:3001 {
+  tls internal
+  reverse_proxy grafana:3001
+}
+{{/if monitoring_docker_desktop}}

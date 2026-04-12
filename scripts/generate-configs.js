@@ -130,36 +130,6 @@ function renderCaddyfile(template, vars) {
 }
 
 /**
- * Render the real Caddyfile template which uses {{#if vps}}...{{else}}...{{/if}}
- * and {{domain}} (lowercase double-brace) token syntax.
- * @param {string} template
- * @param {object} vars - { vps: bool, modules: object, domain: string, ... }
- * @returns {string}
- */
-function renderRealCaddyfile(template, vars) {
-  // Process {{#if KEY}}...{{else}}...{{/if}} blocks
-  let result = template.replace(
-    /\{\{#if (\w+(?:\.\w+)?)\}\}([\s\S]*?)(?:\{\{else\}\}([\s\S]*?))?\{\{\/if\}\}/g,
-    (_, key, ifContent, elseContent) => {
-      // Support dot notation like modules.n8n
-      const val = key.split('.').reduce((obj, k) => (obj && obj[k] !== undefined ? obj[k] : undefined), vars);
-      return val ? ifContent : (elseContent || '');
-    }
-  );
-
-  // Substitute {{token}} placeholders
-  result = result.replace(/\{\{(\w+(?:\.\w+)?)\}\}/g, (_, key) => {
-    const val = key.split('.').reduce((obj, k) => (obj && obj[k] !== undefined ? obj[k] : undefined), vars);
-    return val !== undefined ? val : `{{${key}}}`;
-  });
-
-  // Collapse multiple blank lines
-  result = result.replace(/\n{3,}/g, '\n\n').trim();
-
-  return result;
-}
-
-/**
  * Main entry point. Reads Caddyfile.template, generates secrets, writes all config files.
  * @param {object} state - setup-state.json contents
  * @param {string} baseDir - ~/.vps-launchpad/ working directory
@@ -176,18 +146,21 @@ function generateConfigs(state, baseDir, repoRoot) {
   const templatePath = path.join(repoRoot, 'core', 'caddy', 'Caddyfile.template');
   const template = fs.readFileSync(templatePath, 'utf8');
   const isVps = state.env === 'vps';
+  const hasN8n = !!(state.modules && state.modules.n8n);
+  const hasPaperclip = !!(state.modules && state.modules.paperclip);
+  const hasMonitoring = !!(state.modules && state.modules.monitoring);
   const caddyVars = {
     vps: isVps,
     docker_desktop: !isVps,
-    modules: {
-      n8n: !!(state.modules && state.modules.n8n),
-      paperclip: !!(state.modules && state.modules.paperclip),
-      monitoring: !!(state.modules && state.modules.monitoring),
-    },
-    domain: state.domain || 'localhost',
+    n8n_vps: isVps && hasN8n,
+    n8n_docker_desktop: !isVps && hasN8n,
+    paperclip_vps: isVps && hasPaperclip,
+    paperclip_docker_desktop: !isVps && hasPaperclip,
+    monitoring_vps: isVps && hasMonitoring,
+    monitoring_docker_desktop: !isVps && hasMonitoring,
     DOMAIN: state.domain || 'localhost',
   };
-  const caddyfile = renderRealCaddyfile(template, caddyVars);
+  const caddyfile = renderCaddyfile(template, caddyVars);
   fs.writeFileSync(path.join(baseDir, 'Caddyfile'), caddyfile, 'utf8');
 
   return { secrets };
