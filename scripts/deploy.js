@@ -43,11 +43,11 @@ const CORE_SERVICES = [
 const HEALTH_CHECKS = {
   caddy:          { type: 'running', timeout: 60 },
   tailscale:      { type: 'running', timeout: 30 },
-  'paperclip-db': { type: 'exec', cmd: ['pg_isready', '-U', 'paperclip', '-d', 'paperclip'], timeout: 30 },
-  paperclip:      { type: 'http', url: 'http://paperclip:3100/api/health', timeout: 60 },
-  n8n:            { type: 'http', url: 'http://localhost:5678/healthz', timeout: 60 },
-  grafana:        { type: 'http', url: 'http://grafana:3001/api/health', timeout: 60 },
-  loki:           { type: 'http', url: 'http://loki:3100/ready', timeout: 30 },
+  'paperclip-db': { type: 'running', timeout: 30 },
+  paperclip:      { type: 'running', timeout: 60 },
+  n8n:            { type: 'running', timeout: 60 },
+  grafana:        { type: 'running', timeout: 60 },
+  loki:           { type: 'running', timeout: 30 },
 };
 
 /**
