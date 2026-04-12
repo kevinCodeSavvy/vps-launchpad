@@ -204,11 +204,13 @@ async function deployStack(state, baseDir, repoRoot, emit) {
     }
 
     // Real mode: bring up containers (async so event loop stays free during pulls/builds)
-    // When running inside the launchpad container, baseDir is the container path (/data).
-    // Docker Compose bind mounts are resolved by the HOST daemon, so we must pass the
-    // real host path. HOST_DATA_DIR is injected by bootstrap.sh for this purpose.
+    // ENV_DIR: Docker Compose reads env_file paths from the process filesystem
+    //   → use the container path (/data/envs) so the launchpad container can read them.
+    // DATA_DIR: bind-mount volumes are resolved by the host Docker daemon
+    //   → use the real host path (HOST_DATA_DIR, e.g. ~/.vps-launchpad) so the
+    //     daemon can find the Caddyfile on the host filesystem.
     const hostDataDir = process.env.HOST_DATA_DIR || baseDir;
-    const composeEnv = { ...process.env, ENV_DIR: path.join(hostDataDir, 'envs'), DATA_DIR: hostDataDir, COMPOSE_BAKE: '0' };
+    const composeEnv = { ...process.env, ENV_DIR: path.join(baseDir, 'envs'), DATA_DIR: hostDataDir, COMPOSE_BAKE: '0' };
     try {
       await runComposeUp(absComposeDir, services, composeEnv);
     } catch (err) {
