@@ -175,33 +175,14 @@ app.get('/api/config', requireAuth, (_, res) => {
 // ── Paperclip: Claude subscription auth ───────────────────────────────────────
 
 /**
- * Strip ANSI/VT100 escape sequences from PTY output so we can relay
- * plain text to the browser.
+ * Strip ANSI/VT100 escape sequences from PTY output so we can scan
+ * for automation cues (URL detection etc.) in plain text.
  */
 function stripAnsi(str) {
   return str
     .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')   // CSI sequences (colors, cursor)
     .replace(/\x1B[^[]/g, '')                  // other ESC sequences
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); // stray control chars
-}
-
-/**
- * Wait until `docker exec paperclip claude --version` exits 0, meaning the
- * container is up and the claude CLI is reachable. Retries every 3s up to
- * maxWaitMs milliseconds. Returns true if ready, false if timed out.
- */
-function waitForPaperclip(maxWaitMs = 30000) {
-  const { spawnSync } = require('child_process');
-  const deadline = Date.now() + maxWaitMs;
-  while (Date.now() < deadline) {
-    const r = spawnSync('docker', ['exec', 'paperclip', 'claude', '--version'], { stdio: 'pipe' });
-    if (r.status === 0) return true;
-    // busy-wait with a synchronous sleep via a tight loop (server.js is not
-    // on the hot path here — this only runs once during setup)
-    const until = Date.now() + 3000;
-    while (Date.now() < until) { /* spin */ }
-  }
-  return false;
 }
 
 // Holds the active claude auth PTY so the code-input endpoint can write to it.
@@ -220,14 +201,6 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   if (claudeAuthChild) {
     try { claudeAuthChild.kill(); } catch (_) {}
     claudeAuthChild = null;
-  }
-
-  // Wait up to 30s for paperclip container to be ready before attempting auth
-  send({ type: 'status', message: 'Waiting for Paperclip to be ready…' });
-  if (!waitForPaperclip(30000)) {
-    send({ type: 'error', message: 'Paperclip container did not become ready in time. Check that the paperclip container is running.' });
-    res.end();
-    return;
   }
 
   // Use node-pty to spawn with a real PTY so the claude TUI renders correctly.
