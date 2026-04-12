@@ -18,6 +18,10 @@ COPY launchpad/public/ ./launchpad/public/
 # Build context must be repo root: docker build -f launchpad/Dockerfile .
 COPY scripts/ ./scripts/
 
+# Copy service configs — needed at deploy time via REPO_ROOT=/app
+COPY core/ ./core/
+COPY modules/ ./modules/
+
 EXPOSE 8888
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=5s \
