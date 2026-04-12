@@ -331,24 +331,16 @@ function showClaudeAuthStep() {
     <div class="log-line" style="margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid #334155">
       <strong>🔐 Sign in with your Claude account</strong>
     </div>
-    <div id="claude-auth-starting" class="log-line hint">Starting Claude — login will begin automatically…</div>
+    <p style="color:#94a3b8;font-size:0.85rem;margin:0.5rem 0 0.75rem">
+      The terminal below shows the Claude login process. Once you see a URL, open it, sign in, and paste the code back here.
+    </p>
     <div id="claude-auth-url-box" style="display:none;margin:1rem 0;padding:1rem;background:#1e293b;border-radius:8px;border:1px solid #3b82f6">
       <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.85rem">Open this link in your browser to sign in:</p>
       <a id="claude-auth-link" href="#" target="_blank" style="color:#60a5fa;word-break:break-all;font-size:0.875rem"></a>
     </div>
-    <div id="claude-auth-code-box" style="display:none;margin:1rem 0;padding:1rem;background:#1e293b;border-radius:8px;border:1px solid #f59e0b">
-      <p style="margin:0 0 0.75rem;color:#94a3b8;font-size:0.85rem">Open the link above, sign in, then paste the <strong style="color:#fbbf24">Authentication Code</strong> shown by claude.ai here:</p>
-      <div style="display:flex;gap:0.5rem">
-        <input id="claude-auth-code-input" type="text" placeholder="Paste authentication code…"
-          style="flex:1;padding:0.5rem 0.75rem;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#f1f5f9;font-size:0.875rem;font-family:monospace">
-        <button id="claude-auth-code-btn" onclick="submitClaudeAuthCode()"
-          style="padding:0.5rem 1rem;background:#f59e0b;color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.875rem">Submit</button>
-      </div>
-      <div id="claude-auth-code-err" style="display:none;color:#ef4444;font-size:0.8rem;margin-top:0.5rem"></div>
-    </div>
-    <div id="claude-auth-terminal" style="display:none;margin:1rem 0">
+    <div id="claude-auth-terminal" style="margin:1rem 0">
       <div id="claude-auth-xterm" style="border:1px solid #334155;border-radius:6px;overflow:hidden;margin-bottom:0.5rem"></div>
-      <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.8rem">Type a response, or press <strong style="color:#f1f5f9">Send</strong> to press Enter:</p>
+      <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.8rem">Use the box below if Claude asks you a question — or press <strong style="color:#f1f5f9">Send</strong> to press Enter:</p>
       <div style="display:flex;gap:0.5rem">
         <input id="claude-auth-prompt-input" type="text" placeholder="(press Send to press Enter)"
           onkeydown="if(event.key==='Enter'){sendClaudeAuthInput();}"
@@ -357,12 +349,23 @@ function showClaudeAuthStep() {
           style="padding:0.5rem 1rem;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.875rem">Send</button>
       </div>
     </div>
+    <div id="claude-auth-code-box" style="margin:1rem 0;padding:1rem;background:#1e293b;border-radius:8px;border:1px solid #f59e0b">
+      <p style="margin:0 0 0.75rem;color:#94a3b8;font-size:0.85rem">Once you have signed in at the link above, paste the <strong style="color:#fbbf24">Authentication Code</strong> shown by claude.ai here:</p>
+      <div style="display:flex;gap:0.5rem">
+        <input id="claude-auth-code-input" type="text" placeholder="Paste authentication code…"
+          style="flex:1;padding:0.5rem 0.75rem;background:#0f172a;border:1px solid #475569;border-radius:6px;color:#f1f5f9;font-size:0.875rem;font-family:monospace">
+        <button id="claude-auth-code-btn" onclick="submitClaudeAuthCode()"
+          style="padding:0.5rem 1rem;background:#f59e0b;color:#000;border:none;border-radius:6px;cursor:pointer;font-weight:600;font-size:0.875rem">Submit</button>
+      </div>
+      <div id="claude-auth-code-err" style="display:none;color:#ef4444;font-size:0.8rem;margin-top:0.5rem"></div>
+    </div>
     <div id="claude-auth-ok" style="display:none;color:#22c55e;padding:0.5rem 0">✅ Authenticated — Paperclip is ready.</div>
     <div id="claude-auth-err" style="display:none;color:#ef4444;padding:0.5rem 0"></div>`;
   log.appendChild(section);
   log.scrollTop = log.scrollHeight;
 
-  // Initialise the xterm.js terminal (hidden until code is submitted)
+  // Initialise the xterm.js terminal — visible immediately so the user can
+  // see exactly what claude is outputting throughout the auth flow.
   if (typeof Terminal !== 'undefined') {
     authTerm = new Terminal({
       cols: 100,
@@ -380,16 +383,14 @@ function showClaudeAuthStep() {
   evtSource.onmessage = (e) => {
     const event = JSON.parse(e.data);
     if (event.type === 'url') {
-      document.getElementById('claude-auth-starting').style.display = 'none';
+      // Auto-detected URL — surface it prominently
       const urlBox = document.getElementById('claude-auth-url-box');
       const link = document.getElementById('claude-auth-link');
       link.href = event.url;
       link.textContent = event.url;
       urlBox.style.display = 'block';
     } else if (event.type === 'awaiting_code') {
-      // Show the terminal so the user can see claude's output while entering the code
-      document.getElementById('claude-auth-terminal').style.display = 'block';
-      document.getElementById('claude-auth-code-box').style.display = 'block';
+      // Code input is already visible; just focus it
       document.getElementById('claude-auth-code-input').focus();
     } else if (event.type === 'output') {
       if (authTerm) authTerm.write(event.data);
