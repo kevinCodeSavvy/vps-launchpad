@@ -344,7 +344,9 @@ function showClaudeAuthStep() {
 
   evtSource.onmessage = (e) => {
     const event = JSON.parse(e.data);
-    if (event.type === 'url') {
+    if (event.type === 'status') {
+      document.getElementById('claude-auth-starting').textContent = event.message;
+    } else if (event.type === 'url') {
       document.getElementById('claude-auth-starting').style.display = 'none';
       const urlBox = document.getElementById('claude-auth-url-box');
       const link = document.getElementById('claude-auth-link');

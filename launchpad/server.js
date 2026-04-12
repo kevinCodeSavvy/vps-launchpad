@@ -173,6 +173,26 @@ app.get('/api/config', requireAuth, (_, res) => {
 });
 
 // ── Paperclip: Claude subscription auth ───────────────────────────────────────
+
+/**
+ * Wait until `docker exec paperclip claude --version` exits 0, meaning the
+ * container is up and the claude CLI is reachable. Retries every 3s up to
+ * maxWaitMs milliseconds. Returns true if ready, false if timed out.
+ */
+function waitForPaperclip(maxWaitMs = 30000) {
+  const { spawnSync } = require('child_process');
+  const deadline = Date.now() + maxWaitMs;
+  while (Date.now() < deadline) {
+    const r = spawnSync('docker', ['exec', 'paperclip', 'claude', '--version'], { stdio: 'pipe' });
+    if (r.status === 0) return true;
+    // busy-wait with a synchronous sleep via a tight loop (server.js is not
+    // on the hot path here — this only runs once during setup)
+    const until = Date.now() + 3000;
+    while (Date.now() < until) { /* spin */ }
+  }
+  return false;
+}
+
 app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
@@ -181,14 +201,25 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
 
   const send = (obj) => { try { res.write(`data: ${JSON.stringify(obj)}\n\n`); } catch (_) {} };
 
+  // Wait up to 30s for paperclip container to be ready before attempting auth
+  send({ type: 'status', message: 'Waiting for Paperclip to be ready…' });
+  if (!waitForPaperclip(30000)) {
+    send({ type: 'error', message: 'Paperclip container did not become ready in time. Check that the paperclip container is running.' });
+    res.end();
+    return;
+  }
+
   const { spawn } = require('child_process');
   const child = spawn('docker', ['exec', 'paperclip', 'claude', 'auth', 'login', '--claudeai'], {
     stdio: ['ignore', 'pipe', 'pipe'],
   });
 
   let buffer = '';
+  let allOutput = '';
   function processChunk(chunk) {
-    buffer += chunk.toString();
+    const str = chunk.toString();
+    allOutput += str;
+    buffer += str;
     const lines = buffer.split('\n');
     buffer = lines.pop();
     for (const line of lines) {
@@ -203,8 +234,12 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   child.stderr.on('data', processChunk);
 
   child.on('close', (code) => {
-    if (code === 0) send({ type: 'done' });
-    else send({ type: 'error', message: `Authentication failed (exit code ${code})` });
+    if (code === 0) {
+      send({ type: 'done' });
+    } else {
+      const detail = allOutput.trim() || '(no output)';
+      send({ type: 'error', message: `Authentication failed (exit code ${code}): ${detail}` });
+    }
     res.end();
   });
 
