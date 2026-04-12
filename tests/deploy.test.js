@@ -1,7 +1,6 @@
 'use strict';
 
-const { buildDeployPlan, CORE_SERVICES } = require('../scripts/deploy');
-const { pollHealthCheck } = require('../scripts/deploy');
+const { buildDeployPlan, CORE_SERVICES, pollHealthCheck, deployStack } = require('../scripts/deploy');
 
 describe('buildDeployPlan', () => {
   test('core services always included', () => {
@@ -48,4 +47,49 @@ describe('pollHealthCheck', () => {
       pollHealthCheck('fake-service', { type: 'http', url: 'http://127.0.0.1:19999/health', timeout: 3 })
     ).rejects.toThrow();
   }, 8000);
+});
+
+describe('deployStack (unit — mocked docker)', () => {
+  test('emits progress events for each core service', async () => {
+    const events = [];
+    const emit = e => events.push(e);
+    const state = { env: 'vps', domain: 'example.com', modules: {}, _testMode: true };
+    await deployStack(state, '/fake/base', '/fake/repo', emit);
+    const serviceNames = events.filter(e => e.type === 'progress').map(e => e.service);
+    expect(serviceNames).toContain('caddy');
+    expect(serviceNames).toContain('searxng');
+    const doneEvent = events.find(e => e.type === 'done');
+    expect(doneEvent).toBeDefined();
+  });
+
+  test('emits progress events for n8n module services when selected', async () => {
+    const events = [];
+    const emit = e => events.push(e);
+    const state = { env: 'vps', domain: 'example.com', modules: { n8n: true }, _testMode: true };
+    await deployStack(state, '/fake/base', '/fake/repo', emit);
+    const serviceNames = events.filter(e => e.type === 'progress').map(e => e.service);
+    expect(serviceNames).toContain('tailscale-n8n');
+    expect(serviceNames).toContain('n8n');
+  });
+
+  test('emits module-failed when a module group is in _testFailGroups and core services still finish', async () => {
+    const events = [];
+    const emit = e => events.push(e);
+    const state = {
+      env: 'vps',
+      domain: 'example.com',
+      modules: { n8n: true },
+      _testMode: true,
+      _testFailGroups: ['modules/n8n'],
+    };
+    await deployStack(state, '/fake/base', '/fake/repo', emit);
+    const failedEvent = events.find(e => e.type === 'module-failed');
+    expect(failedEvent).toBeDefined();
+    expect(failedEvent.module).toBe('modules/n8n');
+    const doneEvent = events.find(e => e.type === 'done');
+    expect(doneEvent).toBeDefined();
+    // n8n itself should not appear as healthy
+    const healthyN8n = events.find(e => e.type === 'progress' && e.service === 'n8n' && e.status === 'healthy');
+    expect(healthyN8n).toBeUndefined();
+  });
 });
