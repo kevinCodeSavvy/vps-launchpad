@@ -9,7 +9,9 @@ describe('buildDeployPlan', () => {
     expect(names).toContain('caddy');
     expect(names).toContain('tailscale');
     expect(names).toContain('searxng');
-    expect(names).toContain('karakeep');
+    expect(names).toContain('karakeep-web');
+    expect(names).toContain('karakeep-chrome');
+    expect(names).toContain('karakeep-meilisearch');
     expect(names).toContain('cadvisor');
     expect(names).toContain('watchtower');
   });
