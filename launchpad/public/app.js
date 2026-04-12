@@ -274,6 +274,7 @@ function appendLog(text, type = 'starting') {
 async function startDeploy() {
   showStep('deploy');
   document.getElementById('deploy-log').innerHTML = '';
+  appendLog('Preparing deployment — pulling images may take a few minutes…', 'starting');
   await api('POST', '/api/deploy');
 
   const sep = '/api/deploy/stream?token='.concat(TOKEN);

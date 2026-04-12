@@ -1,8 +1,29 @@
 'use strict';
 
-const { execSync, spawnSync } = require('child_process');
+const { execSync, spawnSync, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
+
+/**
+ * Run `docker compose up -d <services>` asynchronously so the Node.js
+ * event loop stays free during image pulls and builds.
+ * Resolves on exit 0, rejects with stderr on non-zero.
+ */
+function runComposeUp(composeDir, services, env) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      'docker',
+      ['compose', '--project-directory', composeDir, 'up', '-d', '--build', ...services],
+      { stdio: ['ignore', 'ignore', 'pipe'], env }
+    );
+    let stderr = '';
+    child.stderr.on('data', d => { stderr += d.toString(); });
+    child.on('close', code => {
+      if (code === 0) resolve();
+      else reject(Object.assign(new Error(stderr || `exit code ${code}`), { stderr }));
+    });
+  });
+}
 
 /**
  * Core service startup sequence (always deployed, in order).
@@ -174,12 +195,10 @@ async function deployStack(state, baseDir, repoRoot, emit) {
       continue;
     }
 
-    // Real mode: bring up containers
+    // Real mode: bring up containers (async so event loop stays free during pulls/builds)
+    const composeEnv = { ...process.env, ENV_DIR: path.join(baseDir, 'envs'), DATA_DIR: baseDir };
     try {
-      execSync(
-        `docker compose --project-directory ${absComposeDir} up -d ${services.join(' ')}`,
-        { stdio: 'pipe', env: { ...process.env, ENV_DIR: path.join(baseDir, 'envs'), DATA_DIR: baseDir } }
-      );
+      await runComposeUp(absComposeDir, services, composeEnv);
     } catch (err) {
       const msg = err.stderr ? err.stderr.toString() : err.message;
       emit({ type: 'error', service: services[0], message: msg });
