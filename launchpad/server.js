@@ -231,11 +231,12 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   }
 
   // Use node-pty to spawn with a real PTY so the claude TUI renders correctly.
+  // Dimensions match the xterm.js terminal we display in the browser (100x24).
   const pty = require('node-pty');
   const child = pty.spawn('docker', ['exec', '-it', 'paperclip', 'claude', 'auth', 'login', '--claudeai'], {
     name: 'xterm-256color',
-    cols: 120,
-    rows: 40,
+    cols: 100,
+    rows: 24,
   });
   claudeAuthChild = child;
 
@@ -244,9 +245,13 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   let awaitingCodeSent = false;
 
   child.onData((data) => {
-    const cleaned = stripAnsi(data).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-    allOutput += cleaned;
-    lineBuffer += cleaned;
+    // Send raw PTY data to xterm.js in the browser for proper TUI rendering
+    send({ type: 'output', data });
+
+    // Also scan stripped text to detect the auth URL and trigger awaiting_code
+    const stripped = stripAnsi(data).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    allOutput += stripped;
+    lineBuffer += stripped;
 
     const lines = lineBuffer.split('\n');
     lineBuffer = lines.pop(); // keep incomplete last line in buffer
@@ -254,20 +259,13 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
     for (const line of lines) {
       const t = line.trim();
       if (!t) continue;
-
-      // Detect the auth URL (long https:// line) — the code input always
-      // follows immediately, so send awaiting_code at the same time.
+      // Detect the auth URL — code input always follows, so send awaiting_code together
       const urlMatch = t.match(/(https?:\/\/\S{30,})/);
-      if (urlMatch) {
+      if (urlMatch && !awaitingCodeSent) {
+        awaitingCodeSent = true;
         send({ type: 'url', url: urlMatch[1] });
-        if (!awaitingCodeSent) {
-          awaitingCodeSent = true;
-          send({ type: 'awaiting_code' });
-        }
-        continue;
+        send({ type: 'awaiting_code' });
       }
-
-      send({ type: 'output', text: t });
     }
   });
 

@@ -321,6 +321,8 @@ async function startDeploy() {
   };
 }
 
+let authTerm = null; // xterm.js Terminal instance for the claude auth flow
+
 function showClaudeAuthStep() {
   const log = document.getElementById('deploy-log');
 
@@ -345,8 +347,8 @@ function showClaudeAuthStep() {
       <div id="claude-auth-code-err" style="display:none;color:#ef4444;font-size:0.8rem;margin-top:0.5rem"></div>
     </div>
     <div id="claude-auth-terminal" style="display:none;margin:1rem 0">
-      <div id="claude-auth-output" style="background:#0f172a;border:1px solid #334155;border-radius:6px;padding:0.75rem;font-family:monospace;font-size:0.8rem;color:#94a3b8;max-height:160px;overflow-y:auto;white-space:pre-wrap;margin-bottom:0.5rem"></div>
-      <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.8rem">Respond to each prompt, or press <strong style="color:#f1f5f9">Send</strong> to press Enter:</p>
+      <div id="claude-auth-xterm" style="border:1px solid #334155;border-radius:6px;overflow:hidden;margin-bottom:0.5rem"></div>
+      <p style="margin:0 0 0.5rem;color:#94a3b8;font-size:0.8rem">Type a response, or press <strong style="color:#f1f5f9">Send</strong> to press Enter:</p>
       <div style="display:flex;gap:0.5rem">
         <input id="claude-auth-prompt-input" type="text" placeholder="(press Send to press Enter)"
           onkeydown="if(event.key==='Enter'){sendClaudeAuthInput();}"
@@ -359,6 +361,19 @@ function showClaudeAuthStep() {
     <div id="claude-auth-err" style="display:none;color:#ef4444;padding:0.5rem 0"></div>`;
   log.appendChild(section);
   log.scrollTop = log.scrollHeight;
+
+  // Initialise the xterm.js terminal (hidden until code is submitted)
+  if (typeof Terminal !== 'undefined') {
+    authTerm = new Terminal({
+      cols: 100,
+      rows: 24,
+      theme: { background: '#0f172a', foreground: '#e2e8f0', cursor: '#e2e8f0' },
+      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontSize: 12,
+      scrollback: 500,
+    });
+    authTerm.open(document.getElementById('claude-auth-xterm'));
+  }
 
   const evtSource = new EventSource(`/api/modules/paperclip/claude-auth?token=${TOKEN}`);
 
@@ -374,16 +389,15 @@ function showClaudeAuthStep() {
       link.textContent = event.url;
       urlBox.style.display = 'block';
     } else if (event.type === 'awaiting_code') {
+      // Show the terminal so the user can see claude's output while entering the code
+      document.getElementById('claude-auth-terminal').style.display = 'block';
       document.getElementById('claude-auth-code-box').style.display = 'block';
       document.getElementById('claude-auth-code-input').focus();
     } else if (event.type === 'output') {
-      const out = document.getElementById('claude-auth-output');
-      if (out) {
-        out.textContent += event.text + '\n';
-        out.scrollTop = out.scrollHeight;
-      }
+      if (authTerm) authTerm.write(event.data);
     } else if (event.type === 'done') {
       evtSource.close();
+      if (authTerm) { authTerm.dispose(); authTerm = null; }
       document.getElementById('claude-auth-url-box').style.display = 'none';
       document.getElementById('claude-auth-code-box').style.display = 'none';
       document.getElementById('claude-auth-terminal').style.display = 'none';
@@ -392,6 +406,7 @@ function showClaudeAuthStep() {
       document.getElementById('btn-done').classList.remove('hidden');
     } else if (event.type === 'error') {
       evtSource.close();
+      if (authTerm) { authTerm.dispose(); authTerm = null; }
       document.getElementById('claude-auth-terminal').style.display = 'none';
       document.getElementById('claude-auth-code-box').style.display = 'none';
       const errEl = document.getElementById('claude-auth-err');
@@ -421,9 +436,8 @@ async function submitClaudeAuthCode() {
   errEl.style.display = 'none';
   try {
     await api('POST', '/api/modules/paperclip/claude-auth/code', { code });
-    // Code submitted — show the interactive terminal for subsequent prompts
+    // Hide code box; terminal is already visible — focus prompt input for next steps
     document.getElementById('claude-auth-code-box').style.display = 'none';
-    document.getElementById('claude-auth-terminal').style.display = 'block';
     document.getElementById('claude-auth-prompt-input').focus();
   } catch (err) {
     errEl.textContent = `Failed to submit code: ${err.message}`;
