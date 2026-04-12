@@ -1,8 +1,0 @@
-FROM paperclip-paperclip:latest
-
-USER root
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends openssh-client curl && \
-    rm -rf /var/lib/apt/lists/*
-RUN npm install -g supergateway @railway/mcp-server
-RUN curl -fsSL https://railway.com/install.sh | sh
