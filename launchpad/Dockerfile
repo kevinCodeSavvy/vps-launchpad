@@ -1,14 +1,23 @@
+FROM node:22-alpine AS builder
+
+# Build tools needed to compile node-pty native bindings
+RUN apk add --no-cache python3 make g++
+
+WORKDIR /app
+COPY launchpad/package.json launchpad/package-lock.json ./launchpad/
+RUN npm ci --prefix ./launchpad
+
+# ── Runtime image ──────────────────────────────────────────────────────────────
 FROM node:22-alpine
 
-# Install docker CLI (for docker compose commands inside the container)
-RUN apk add --no-cache docker-cli docker-compose openssl curl
+# docker CLI for compose commands; libstdc++ needed by node-pty native binary
+RUN apk add --no-cache docker-cli docker-compose openssl curl libstdc++
 
 # Mirror the repo layout so require('../scripts/...') works from launchpad/server.js
 WORKDIR /app
 
-# Copy package files and install production deps only
-COPY launchpad/package.json launchpad/package-lock.json ./launchpad/
-RUN npm ci --omit=dev --prefix ./launchpad
+# Copy compiled node_modules from builder (includes node-pty native .node file)
+COPY --from=builder /app/launchpad/node_modules ./launchpad/node_modules
 
 # Copy server and public files
 COPY launchpad/server.js ./launchpad/

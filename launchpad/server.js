@@ -175,6 +175,17 @@ app.get('/api/config', requireAuth, (_, res) => {
 // ── Paperclip: Claude subscription auth ───────────────────────────────────────
 
 /**
+ * Strip ANSI/VT100 escape sequences from PTY output so we can relay
+ * plain text to the browser.
+ */
+function stripAnsi(str) {
+  return str
+    .replace(/\x1B\[[0-9;]*[A-Za-z]/g, '')   // CSI sequences (colors, cursor)
+    .replace(/\x1B[^[]/g, '')                  // other ESC sequences
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, ''); // stray control chars
+}
+
+/**
  * Wait until `docker exec paperclip claude --version` exits 0, meaning the
  * container is up and the claude CLI is reachable. Retries every 3s up to
  * maxWaitMs milliseconds. Returns true if ready, false if timed out.
@@ -193,8 +204,8 @@ function waitForPaperclip(maxWaitMs = 30000) {
   return false;
 }
 
-// Holds the active claude auth child process so the code-input endpoint can
-// write to its stdin. Only one auth session runs at a time.
+// Holds the active claude auth PTY so the code-input endpoint can write to it.
+// Only one auth session runs at a time.
 let claudeAuthChild = null;
 
 app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
@@ -219,53 +230,63 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
     return;
   }
 
-  const { spawn } = require('child_process');
-  // stdin must be 'pipe' so we can write the authentication code back to the process
-  const child = spawn('docker', ['exec', '-i', 'paperclip', 'claude', 'auth', 'login', '--claudeai'], {
-    stdio: ['pipe', 'pipe', 'pipe'],
+  // Use node-pty to spawn with a real PTY so the claude TUI renders correctly.
+  const pty = require('node-pty');
+  const child = pty.spawn('docker', ['exec', '-it', 'paperclip', 'claude', 'auth', 'login', '--claudeai'], {
+    name: 'xterm-256color',
+    cols: 120,
+    rows: 40,
   });
   claudeAuthChild = child;
 
-  let buffer = '';
+  let lineBuffer = '';
   let allOutput = '';
   let awaitingCodeSent = false;
-  function processChunk(chunk) {
-    const str = chunk.toString();
-    allOutput += str;
-    buffer += str;
-    const lines = buffer.split('\n');
-    buffer = lines.pop();
+
+  child.onData((data) => {
+    const cleaned = stripAnsi(data).replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+    allOutput += cleaned;
+    lineBuffer += cleaned;
+
+    const lines = lineBuffer.split('\n');
+    lineBuffer = lines.pop(); // keep incomplete last line in buffer
+
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const urlMatch = trimmed.match(/visit:\s*(https?:\/\/\S+)/i);
+      const t = line.trim();
+      if (!t) continue;
+
+      // Detect the auth URL (long https:// line)
+      const urlMatch = t.match(/(https?:\/\/\S{30,})/);
       if (urlMatch) {
         send({ type: 'url', url: urlMatch[1] });
-        if (!awaitingCodeSent) {
-          awaitingCodeSent = true;
-          send({ type: 'awaiting_code' });
-        }
-      } else {
-        // Relay all other output to the UI so the user can see prompts
-        send({ type: 'output', text: trimmed });
+        continue;
       }
-    }
-    // Also relay any partial line still in the buffer (prompts without newline)
-    if (buffer.trim()) {
-      send({ type: 'output', text: buffer.trim() });
-    }
-  }
 
-  child.stdout.on('data', processChunk);
-  child.stderr.on('data', processChunk);
+      // Detect the "paste code here" prompt → tell UI to show code input
+      if (!awaitingCodeSent && /paste code/i.test(t)) {
+        awaitingCodeSent = true;
+        send({ type: 'awaiting_code' });
+      }
 
-  child.on('close', (code) => {
+      send({ type: 'output', text: t });
+    }
+
+    // Check partial buffer for the paste-code prompt (no trailing newline)
+    const partial = lineBuffer.trim();
+    if (!awaitingCodeSent && partial && /paste code/i.test(partial)) {
+      awaitingCodeSent = true;
+      send({ type: 'awaiting_code' });
+      send({ type: 'output', text: partial });
+      lineBuffer = '';
+    }
+  });
+
+  child.onExit(({ exitCode }) => {
     if (claudeAuthChild === child) claudeAuthChild = null;
-    if (code === 0) {
+    if (exitCode === 0) {
       send({ type: 'done' });
     } else {
-      const detail = allOutput.trim() || '(no output)';
-      send({ type: 'error', message: `Authentication failed (exit code ${code}): ${detail}` });
+      send({ type: 'error', message: `Authentication failed (exit code ${exitCode})` });
     }
     res.end();
   });
@@ -276,14 +297,13 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   });
 });
 
-// Send the authentication code (initial paste-back)
+// Send the authentication code (initial paste-back after visiting the URL)
 app.post('/api/modules/paperclip/claude-auth/code', requireAuth, (req, res) => {
   const code = (req.body && req.body.code || '').trim();
   if (!code) return res.status(400).json({ error: 'Missing code' });
   if (!claudeAuthChild) return res.status(409).json({ error: 'No active auth session' });
   try {
-    claudeAuthChild.stdin.write(code + '\n');
-    // Do NOT close stdin — there are further interactive prompts after the code
+    claudeAuthChild.write(code + '\r');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -295,7 +315,7 @@ app.post('/api/modules/paperclip/claude-auth/input', requireAuth, (req, res) => 
   const text = (req.body && req.body.text != null) ? req.body.text : '';
   if (!claudeAuthChild) return res.status(409).json({ error: 'No active auth session' });
   try {
-    claudeAuthChild.stdin.write(text + '\n');
+    claudeAuthChild.write(text + '\r');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
