@@ -1,0 +1,18 @@
+{
+  "name": "vps-launchpad",
+  "version": "1.0.0",
+  "description": "VPS Launchpad setup and config generation",
+  "main": "index.js",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "scripts": {
+    "test": "node --experimental-vm-modules node_modules/.bin/jest"
+  },
+  "jest": {
+    "testMatch": [
+      "../tests/**/*.test.js"
+    ],
+    "testEnvironment": "node"
+  }
+}
