@@ -1,0 +1,16 @@
+services:
+  searxng:
+    image: searxng/searxng:latest
+    container_name: searxng
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./config:/etc/searxng:rw
+    networks:
+      - caddy_default
+
+networks:
+  caddy_default:
+    name: caddy_default
+    external: true

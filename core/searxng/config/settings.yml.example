@@ -1,0 +1,22 @@
+use_default_settings: true
+
+server:
+  secret_key: "SEARXNG_SECRET_PLACEHOLDER"
+  limiter: true
+  image_proxy: true
+  port: 8080
+  bind_address: "0.0.0.0"
+  public_instance: false
+
+ui:
+  static_use_hash: true
+
+search:
+  safe_search: 0
+  autocomplete: ""
+  default_lang: ""
+
+enabled_plugins:
+  - 'Hash plugin'
+  - 'Self Information'
+  - 'Tracker URL remover'
