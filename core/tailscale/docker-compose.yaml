@@ -1,0 +1,32 @@
+services:
+  tailscale:
+    image: tailscale/tailscale:latest
+    container_name: tailscale
+    hostname: ${TAILSCALE_HOSTNAME:-homelab}
+    restart: unless-stopped
+    environment:
+      - TS_USERSPACE=${TS_USERSPACE:-false}
+      - TS_STATE_DIR=/var/lib/tailscale
+      - TS_EXTRA_ARGS=--auth-key file:/run/secrets/tsauthkey
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+    secrets:
+      - tsauthkey
+    networks:
+      - caddy_default
+
+secrets:
+  tsauthkey:
+    file: ${TAILSCALE_AUTH_KEY_FILE:-~/.config/tsauthkey}
+
+volumes:
+  tailscale-state:
+
+networks:
+  caddy_default:
+    name: caddy_default
+    external: true
