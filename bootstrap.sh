@@ -103,23 +103,23 @@ docker run -d \
 
 if [[ "$OS" == "Linux" ]]; then
   SERVER_IP="$(curl -s --connect-timeout 3 ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
-  echo ""
-  echo "╔══════════════════════════════════════════════════════════════╗"
-  echo "║  VPS Launchpad is running!                                   ║"
-  echo "╠══════════════════════════════════════════════════════════════╣"
-  echo "║  Open this URL in your browser:                              ║"
-  echo "║  http://${SERVER_IP}:8888?token=${SESSION_TOKEN}  ║"
-  echo "╚══════════════════════════════════════════════════════════════╝"
+  ACCESS_URL="http://${SERVER_IP}:8888?token=${SESSION_TOKEN}"
 else
-  echo ""
-  echo "╔══════════════════════════════════════════════════════════════╗"
-  echo "║  VPS Launchpad is running!                                   ║"
-  echo "╠══════════════════════════════════════════════════════════════╣"
-  echo "║  Open this URL in your browser:                              ║"
-  echo "║  http://localhost:8888?token=${SESSION_TOKEN}                ║"
-  echo "╚══════════════════════════════════════════════════════════════╝"
+  ACCESS_URL="http://localhost:8888?token=${SESSION_TOKEN}"
 fi
 
+BOLD='\033[1m'
+GREEN='\033[0;32m'
+CYAN='\033[0;36m'
+DIM='\033[2m'
+RESET='\033[0m'
+
 echo ""
-echo "Note: The setup wizard will auto-close after successful deployment."
-echo "To re-open management: ./bootstrap.sh --manage"
+echo -e "  ${GREEN}${BOLD}✓ VPS Launchpad is running${RESET}"
+echo ""
+echo -e "  ${BOLD}Open in your browser:${RESET}"
+echo -e "  ${CYAN}${BOLD}${ACCESS_URL}${RESET}"
+echo ""
+echo -e "  ${DIM}The wizard will close automatically after deployment.${RESET}"
+echo -e "  ${DIM}To reopen: curl ... | bash -s -- --manage${RESET}"
+echo ""
