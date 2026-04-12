@@ -168,6 +168,47 @@ app.post('/api/deploy/destroy', requireAuth, (req, res) => {
   }, 500);
 });
 
+app.get('/api/config', requireAuth, (_, res) => {
+  res.json({ manageMode: MANAGE_MODE });
+});
+
+app.post('/api/modules/:id/remove', requireAuth, (req, res) => {
+  const modId = req.params.id;
+  const st = readState();
+  const modDir = path.join(REPO_ROOT, 'modules', modId);
+
+  // docker compose down (non-fatal — module may not be running)
+  if (!st._testMode) {
+    try {
+      const { execSync: _execSync } = require('child_process');
+      _execSync(`docker compose --project-directory ${modDir} down`, { stdio: 'pipe' });
+    } catch (err) {
+      console.error('docker compose down error:', err.message);
+    }
+  }
+
+  // Update state
+  if (st.modules) st.modules[modId] = false;
+  writeState(st);
+
+  // Regenerate Caddyfile without this module's block (skip in test mode)
+  if (!st._testMode) {
+    try {
+      const { generateConfigs: _generateConfigs } = require('../scripts/generate-configs');
+      _generateConfigs(st, BASE_DIR, REPO_ROOT);
+      const { execSync: _execSync2 } = require('child_process');
+      _execSync2(
+        'docker exec caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile 2>/dev/null || true',
+        { stdio: 'pipe' }
+      );
+    } catch (err) {
+      console.error('Caddyfile regeneration error:', err.message);
+    }
+  }
+
+  res.json({ ok: true });
+});
+
 module.exports = { app };
 
 // Only start server when run directly (not when required by tests)

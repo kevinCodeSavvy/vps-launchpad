@@ -95,3 +95,30 @@ describe('POST /api/deploy', () => {
     expect(res.status).toBe(401);
   });
 });
+
+describe('GET /api/config', () => {
+  test('returns manageMode false by default', async () => {
+    const res = await request(app).get(`/api/config?token=${TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.body).toHaveProperty('manageMode');
+    expect(res.body.manageMode).toBe(false);
+  });
+});
+
+describe('POST /api/modules/:id/remove', () => {
+  test('returns 200 and marks module as false in state', async () => {
+    // Set state with a module active and testMode so generateConfigs is skipped
+    await request(app)
+      .post(`/api/state?token=${TOKEN}`)
+      .send({ modules: { n8n: true }, env: 'vps', domain: 'test.com', _testMode: true });
+
+    const res = await request(app)
+      .post(`/api/modules/n8n/remove?token=${TOKEN}`);
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+
+    // Verify state updated
+    const stateRes = await request(app).get(`/api/state?token=${TOKEN}`);
+    expect(stateRes.body.modules.n8n).toBe(false);
+  });
+});
