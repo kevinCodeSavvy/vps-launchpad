@@ -34,7 +34,7 @@ services:
       PAPERCLIP_DEPLOYMENT_MODE: "authenticated"
       PAPERCLIP_DEPLOYMENT_EXPOSURE: "private"
       CLAUDE_CONFIG_DIR: /paperclip/.claude
-    entrypoint: ["/bin/sh", "-c", "mkdir -p /paperclip/.claude/projects && chmod -R 777 /paperclip/.claude && exec docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"]
+    entrypoint: ["/bin/sh", "-c", "mkdir -p /paperclip/.claude/projects && chmod -R 777 /paperclip/.claude && pnpm paperclipai allowed-hostname ${PAPERCLIP_HOSTNAME:-paperclip.localhost} 2>/dev/null || true && exec docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js"]
     volumes:
       - paperclip-data:/paperclip
     depends_on:

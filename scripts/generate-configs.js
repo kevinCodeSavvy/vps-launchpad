@@ -107,6 +107,7 @@ function writeEnvFiles(state, secrets, baseDir) {
   if (state.modules && state.modules.paperclip) {
     const pcEnv = state.moduleEnv && state.moduleEnv.paperclip ? { ...state.moduleEnv.paperclip } : {};
     pcEnv.BETTER_AUTH_SECRET = secrets.BETTER_AUTH_SECRET;
+    pcEnv.PAPERCLIP_HOSTNAME = isVps ? `paperclip.${domain}` : 'paperclip.localhost';
     writeEnv(envsDir, 'paperclip.env', pcEnv);
   }
 }
