@@ -174,6 +174,11 @@ async function deployStack(state, baseDir, repoRoot, emit) {
     } catch (_) { /* network doesn't exist — nothing to do */ }
   }
 
+  // Derive the Paperclip hostname for the allowed-hostname registration step.
+  const paperclipHostname = (state.env === 'vps')
+    ? `paperclip.${state.domain || 'localhost'}`
+    : 'paperclip.localhost';
+
   for (const group of plan) {
     const { services, parallel, composeDir } = group;
     const absComposeDir = path.join(repoRoot, composeDir);
@@ -234,6 +239,16 @@ async function deployStack(state, baseDir, repoRoot, emit) {
         try {
           await pollHealthCheck(svc, check);
           emit({ type: 'progress', service: svc, status: 'healthy' });
+
+          // Register the allowed hostname with Paperclip after it starts
+          if (svc === 'paperclip' && !isTestMode) {
+            try {
+              execSync(
+                `docker exec paperclip pnpm paperclipai allowed-hostname ${paperclipHostname}`,
+                { stdio: 'pipe' }
+              );
+            } catch (_) { /* already registered or command unavailable — non-fatal */ }
+          }
         } catch (err) {
           emit({ type: 'error', service: svc, message: err.message });
           if (isCore) {
