@@ -469,33 +469,21 @@ function renderDeployLinks(st) {
   const domain = st.domain || 'localhost';
 
   const services = [
-    { name: 'SearXNG', vpsUrl: `https://search.${domain}`, localPort: 8080 },
-    { name: 'Karakeep', vpsUrl: `https://karakeep.${domain}`, localPort: 3002 },
+    { name: 'SearXNG',  vpsUrl: `https://search.${domain}`,    localUrl: 'http://search.localhost' },
+    { name: 'Karakeep', vpsUrl: `https://karakeep.${domain}`,  localUrl: 'http://karakeep.localhost' },
   ];
 
-  if (st.modules && st.modules.n8n) services.push({ name: 'n8n', vpsUrl: `https://n8n.${domain}`, localPort: 5678 });
-  if (st.modules && st.modules.paperclip) services.push({ name: 'Paperclip', vpsUrl: `https://paperclip.${domain}`, localPort: 3100 });
-  if (st.modules && st.modules.monitoring) services.push({ name: 'Grafana', vpsUrl: `https://grafana.${domain}`, localPort: 3001 });
+  if (st.modules && st.modules.n8n)        services.push({ name: 'n8n',       vpsUrl: `https://n8n.${domain}`,       localUrl: 'http://n8n.localhost' });
+  if (st.modules && st.modules.paperclip)  services.push({ name: 'Paperclip', vpsUrl: `https://paperclip.${domain}`, localUrl: 'http://paperclip.localhost' });
+  if (st.modules && st.modules.monitoring) services.push({ name: 'Grafana',   vpsUrl: `https://grafana.${domain}`,   localUrl: 'http://grafana.localhost' });
 
   for (const svc of services) {
-    // Docker Desktop: Caddy uses TLS internally, so links must be https://
-    const url = isVps ? svc.vpsUrl : `https://localhost:${svc.localPort}`;
+    const url = isVps ? svc.vpsUrl : svc.localUrl;
     const a = document.createElement('a');
     a.href = url;
     a.target = '_blank';
     a.textContent = svc.name;
     container.appendChild(a);
-  }
-
-  // Warn when using localhost links — these only work from the machine
-  // running Docker. If you deployed on a VPS, re-run the wizard and select
-  // "VPS / Cloud Server" to get proper domain-based URLs.
-  if (!isVps) {
-    const note = document.createElement('p');
-    note.style.cssText = 'margin:0.75rem 0 0;color:#f59e0b;font-size:0.8rem';
-    note.innerHTML = '⚠️ Links point to <strong>localhost</strong> — they only work from the machine running Docker. ' +
-      'If this is a VPS, re-run the wizard and choose <strong>VPS / Cloud Server</strong> to get domain-based URLs.';
-    container.appendChild(note);
   }
 }
 
