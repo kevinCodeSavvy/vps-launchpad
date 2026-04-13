@@ -540,6 +540,45 @@ function renderDeployLinks(st) {
     a.textContent = svc.name;
     container.appendChild(a);
   }
+
+  if (st.modules && st.modules.paperclip) {
+    showPaperclipInvite(st);
+  }
+}
+
+async function showPaperclipInvite(st) {
+  const log = document.getElementById('deploy-log');
+  if (!log) return;
+
+  const isVps = st.env === 'vps';
+  const domain = st.domain || 'localhost';
+  const paperclipBase = isVps ? `https://paperclip.${domain}` : 'http://paperclip.localhost';
+
+  const box = document.createElement('div');
+  box.id = 'paperclip-invite-box';
+  box.style.cssText = 'margin-top:1.25rem;padding:1rem;background:#1e293b;border-radius:8px;border:1px solid #22c55e';
+  box.innerHTML = '<p style="margin:0;color:#94a3b8;font-size:0.85rem">⏳ Generating Paperclip admin invite…</p>';
+  log.appendChild(box);
+  log.scrollTop = log.scrollHeight;
+
+  try {
+    const res = await api('POST', '/api/modules/paperclip/bootstrap-ceo');
+    if (res.ok) {
+      const inviteUrl = res.inviteUrl.replace(/^https?:\/\/localhost:\d+/, paperclipBase);
+      box.innerHTML = `
+        <p style="margin:0 0 0.5rem;color:#22c55e;font-weight:600">🔗 Paperclip admin setup</p>
+        <p style="margin:0 0 0.75rem;color:#94a3b8;font-size:0.85rem">Open this link to create your Paperclip admin account. It expires in 3 days.</p>
+        <a href="${inviteUrl}" target="_blank"
+           style="display:block;padding:0.6rem 0.75rem;background:#0f172a;border:1px solid #334155;border-radius:6px;color:#60a5fa;word-break:break-all;font-size:0.85rem;font-family:monospace">${inviteUrl}</a>`;
+    } else if (res.alreadyExists) {
+      box.innerHTML = '<p style="margin:0;color:#94a3b8;font-size:0.85rem">ℹ️ Paperclip admin already set up — open Paperclip to sign in.</p>';
+    } else {
+      box.innerHTML = `<p style="margin:0;color:#f59e0b;font-size:0.85rem">⚠️ Could not generate invite: ${res.message}</p>`;
+    }
+  } catch (err) {
+    box.innerHTML = `<p style="margin:0;color:#f59e0b;font-size:0.85rem">⚠️ Could not generate invite: ${err.message}</p>`;
+  }
+  log.scrollTop = log.scrollHeight;
 }
 
 // ── Manage Mode ────────────────────────────────────────────────────────────────

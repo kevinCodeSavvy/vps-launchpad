@@ -290,6 +290,26 @@ app.post('/api/modules/paperclip/claude-auth/code', requireAuth, (req, res) => {
   }
 });
 
+// Generate (or retrieve) the first-admin invite URL for Paperclip
+app.post('/api/modules/paperclip/bootstrap-ceo', requireAuth, (req, res) => {
+  const { execSync } = require('child_process');
+  try {
+    const output = execSync(
+      'docker exec paperclip /usr/local/bin/pnpm paperclipai auth bootstrap-ceo -d /paperclip/instances/default 2>&1',
+      { stdio: 'pipe' }
+    ).toString();
+    const match = output.match(/Invite URL:\s*(https?:\/\/\S+)/);
+    if (!match) return res.json({ ok: false, message: 'Could not extract invite URL from output' });
+    res.json({ ok: true, inviteUrl: match[1] });
+  } catch (err) {
+    const out = (err.stdout || err.stderr || err.message || '').toString();
+    if (/already exists|already bootstrapped/i.test(out)) {
+      return res.json({ ok: false, alreadyExists: true });
+    }
+    res.json({ ok: false, message: out });
+  }
+});
+
 // Send a line of input to the running auth process (for subsequent prompts)
 app.post('/api/modules/paperclip/claude-auth/input', requireAuth, (req, res) => {
   const text = (req.body && req.body.text != null) ? req.body.text : '';
