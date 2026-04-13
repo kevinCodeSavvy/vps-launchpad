@@ -12,12 +12,6 @@ services:
       - "80:80"
       - "443:443"
       - "443:443/udp"
-      # Docker Desktop local ports — unused in VPS mode but harmless to publish
-      - "8080:8080"   # SearXNG
-      - "3002:3002"   # Karakeep
-      - "3100:3100"   # Paperclip
-      - "5678:5678"   # n8n
-      - "3001:3001"   # Grafana
     volumes:
       - ${DATA_DIR}/Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data
