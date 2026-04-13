@@ -295,7 +295,7 @@ app.post('/api/modules/paperclip/bootstrap-ceo', requireAuth, (req, res) => {
   const { execSync } = require('child_process');
   try {
     const output = execSync(
-      'docker exec paperclip /usr/local/bin/pnpm paperclipai auth bootstrap-ceo -d /paperclip/instances/default 2>&1',
+      'docker exec --user node paperclip /usr/local/bin/pnpm paperclipai auth bootstrap-ceo -d /paperclip/instances/default 2>&1',
       { stdio: 'pipe' }
     ).toString();
     const match = output.match(/Invite URL:\s*(https?:\/\/\S+)/);
@@ -303,7 +303,7 @@ app.post('/api/modules/paperclip/bootstrap-ceo', requireAuth, (req, res) => {
     res.json({ ok: true, inviteUrl: match[1] });
   } catch (err) {
     const out = (err.stdout || err.stderr || err.message || '').toString();
-    if (/already exists|already bootstrapped/i.test(out)) {
+    if (/already has an admin|already exists|already bootstrapped/i.test(out)) {
       return res.json({ ok: false, alreadyExists: true });
     }
     res.json({ ok: false, message: out });
