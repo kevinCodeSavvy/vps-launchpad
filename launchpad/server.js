@@ -207,7 +207,7 @@ app.get('/api/modules/paperclip/claude-auth', requireAuth, (req, res) => {
   // Dimensions match the xterm.js terminal we display in the browser (100x24).
   const pty = require('node-pty');
   // Run `claude` directly — the /login flow is the supported interactive auth path.
-  const child = pty.spawn('docker', ['exec', '-it', 'paperclip', 'claude'], {
+  const child = pty.spawn('docker', ['exec', '-it', '--user', 'node', 'paperclip', 'claude'], {
     name: 'xterm-256color',
     cols: 100,
     rows: 24,

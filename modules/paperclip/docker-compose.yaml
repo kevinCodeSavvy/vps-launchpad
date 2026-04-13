@@ -40,6 +40,7 @@ services:
       - |
         mkdir -p /paperclip/.claude/projects
         chmod -R 777 /paperclip/.claude
+        chmod 644 /paperclip/.claude/.credentials.json 2>/dev/null || true
         PNPM=/usr/local/bin/pnpm
         DATADIR=/paperclip/instances/default
         $PNPM paperclipai onboard -d $DATADIR --bind loopback -y 2>/dev/null || true
