@@ -478,12 +478,24 @@ function renderDeployLinks(st) {
   if (st.modules && st.modules.monitoring) services.push({ name: 'Grafana', vpsUrl: `https://grafana.${domain}`, localPort: 3001 });
 
   for (const svc of services) {
-    const url = isVps ? svc.vpsUrl : `http://localhost:${svc.localPort}`;
+    // Docker Desktop: Caddy uses TLS internally, so links must be https://
+    const url = isVps ? svc.vpsUrl : `https://localhost:${svc.localPort}`;
     const a = document.createElement('a');
     a.href = url;
     a.target = '_blank';
     a.textContent = svc.name;
     container.appendChild(a);
+  }
+
+  // Warn when using localhost links — these only work from the machine
+  // running Docker. If you deployed on a VPS, re-run the wizard and select
+  // "VPS / Cloud Server" to get proper domain-based URLs.
+  if (!isVps) {
+    const note = document.createElement('p');
+    note.style.cssText = 'margin:0.75rem 0 0;color:#f59e0b;font-size:0.8rem';
+    note.innerHTML = '⚠️ Links point to <strong>localhost</strong> — they only work from the machine running Docker. ' +
+      'If this is a VPS, re-run the wizard and choose <strong>VPS / Cloud Server</strong> to get domain-based URLs.';
+    container.appendChild(note);
   }
 }
 
