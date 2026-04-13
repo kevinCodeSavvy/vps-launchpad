@@ -43,6 +43,7 @@ services:
         PNPM=/usr/local/bin/pnpm
         DATADIR=/paperclip/instances/default
         $PNPM paperclipai onboard -d $DATADIR --bind loopback -y 2>/dev/null || true
+        chmod -R a+rw "$DATADIR" 2>/dev/null || true
         $PNPM paperclipai allowed-hostname "${PAPERCLIP_HOSTNAME:-paperclip.localhost}" -d $DATADIR 2>/dev/null || true
         exec docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js
     healthcheck:
