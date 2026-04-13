@@ -240,14 +240,28 @@ async function deployStack(state, baseDir, repoRoot, emit) {
           await pollHealthCheck(svc, check);
           emit({ type: 'progress', service: svc, status: 'healthy' });
 
-          // Register the allowed hostname with Paperclip after it starts
+          // Onboard Paperclip and register the allowed hostname after it starts.
+          // onboard is idempotent (-y skips interactive prompts); errors mean
+          // it was already run, which is fine. allowed-hostname requires the
+          // same -d flag and needs a container restart to take effect.
           if (svc === 'paperclip' && !isTestMode) {
+            const dataDir = '/paperclip/instances/default';
             try {
               execSync(
-                `docker exec paperclip pnpm paperclipai allowed-hostname ${paperclipHostname}`,
+                `docker exec paperclip pnpm paperclipai onboard -d ${dataDir} --bind loopback -y`,
                 { stdio: 'pipe' }
               );
-            } catch (_) { /* already registered or command unavailable — non-fatal */ }
+            } catch (_) { /* already onboarded — safe to continue */ }
+            try {
+              execSync(
+                `docker exec paperclip pnpm paperclipai allowed-hostname ${paperclipHostname} -d ${dataDir}`,
+                { stdio: 'pipe' }
+              );
+              // Restart so the hostname change takes effect
+              execSync('docker restart paperclip', { stdio: 'pipe' });
+              // Brief wait for the server to come back up
+              await new Promise(r => setTimeout(r, 3000));
+            } catch (_) { /* non-fatal */ }
           }
         } catch (err) {
           emit({ type: 'error', service: svc, message: err.message });
