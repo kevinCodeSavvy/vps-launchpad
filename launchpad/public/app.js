@@ -360,7 +360,8 @@ function showClaudeAuthStep() {
       <div id="claude-auth-code-err" style="display:none;color:#ef4444;font-size:0.8rem;margin-top:0.5rem"></div>
     </div>
     <div id="claude-auth-ok" style="display:none;color:#22c55e;padding:0.5rem 0">✅ Authenticated — Paperclip is ready.</div>
-    <div id="claude-auth-err" style="display:none;color:#ef4444;padding:0.5rem 0"></div>`;
+    <div id="claude-auth-err" style="display:none;color:#ef4444;padding:0.5rem 0"></div>
+    <button id="claude-auth-retry" onclick="retryClaudeAuth()" style="display:none;margin-top:0.5rem;padding:0.4rem 0.9rem;background:#3b82f6;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:0.85rem">↩ Retry sign-in</button>`;
   log.appendChild(section);
   log.scrollTop = log.scrollHeight;
 
@@ -411,12 +412,66 @@ function showClaudeAuthStep() {
       const errEl = document.getElementById('claude-auth-err');
       errEl.textContent = event.message;
       errEl.style.display = 'block';
+      document.getElementById('claude-auth-retry').style.display = 'inline-block';
       renderDeployLinks(state);
       document.getElementById('btn-done').classList.remove('hidden');
     }
     log.scrollTop = log.scrollHeight;
   };
 
+  evtSource.onerror = () => evtSource.close();
+}
+
+function retryClaudeAuth() {
+  // Reset UI state
+  document.getElementById('claude-auth-retry').style.display = 'none';
+  document.getElementById('claude-auth-err').style.display = 'none';
+  document.getElementById('claude-auth-url-box').style.display = 'none';
+  document.getElementById('claude-auth-terminal').style.display = 'block';
+  document.getElementById('claude-auth-code-box').style.display = 'block';
+
+  // Reset terminal
+  if (authTerm) { authTerm.dispose(); authTerm = null; }
+  authTerm = new Terminal({
+    cols: 100, rows: 24,
+    theme: { background: '#0f172a', foreground: '#e2e8f0', cursor: '#e2e8f0' },
+    fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+    fontSize: 12, scrollback: 500,
+  });
+  authTerm.open(document.getElementById('claude-auth-xterm'));
+
+  // Reconnecting to the SSE endpoint kills the old process server-side and starts fresh
+  const evtSource = new EventSource(`/api/modules/paperclip/claude-auth?token=${TOKEN}`);
+  const log = document.getElementById('deploy-log');
+  evtSource.onmessage = (e) => {
+    const event = JSON.parse(e.data);
+    if (event.type === 'url') {
+      const urlBox = document.getElementById('claude-auth-url-box');
+      document.getElementById('claude-auth-link').href = event.url;
+      document.getElementById('claude-auth-link').textContent = event.url;
+      urlBox.style.display = 'block';
+    } else if (event.type === 'output') {
+      if (authTerm) authTerm.write(event.data);
+    } else if (event.type === 'done') {
+      evtSource.close();
+      if (authTerm) { authTerm.dispose(); authTerm = null; }
+      document.getElementById('claude-auth-url-box').style.display = 'none';
+      document.getElementById('claude-auth-code-box').style.display = 'none';
+      document.getElementById('claude-auth-terminal').style.display = 'none';
+      document.getElementById('claude-auth-ok').style.display = 'block';
+      renderDeployLinks(state);
+      document.getElementById('btn-done').classList.remove('hidden');
+    } else if (event.type === 'error') {
+      evtSource.close();
+      if (authTerm) { authTerm.dispose(); authTerm = null; }
+      document.getElementById('claude-auth-terminal').style.display = 'none';
+      const errEl = document.getElementById('claude-auth-err');
+      errEl.textContent = event.message;
+      errEl.style.display = 'block';
+      document.getElementById('claude-auth-retry').style.display = 'inline-block';
+    }
+    log.scrollTop = log.scrollHeight;
+  };
   evtSource.onerror = () => evtSource.close();
 }
 

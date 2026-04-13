@@ -44,7 +44,7 @@ const HEALTH_CHECKS = {
   caddy:          { type: 'running', timeout: 60 },
   tailscale:      { type: 'running', timeout: 30 },
   'paperclip-db': { type: 'running', timeout: 30 },
-  paperclip:      { type: 'running', timeout: 60 },
+  paperclip:      { type: 'docker',  timeout: 180 },
   n8n:            { type: 'running', timeout: 60 },
   grafana:        { type: 'running', timeout: 60 },
   loki:           { type: 'running', timeout: 30 },
