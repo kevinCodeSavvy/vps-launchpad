@@ -44,6 +44,7 @@ services:
         DATADIR=/paperclip/instances/default
         $PNPM paperclipai onboard -d $DATADIR --bind loopback -y 2>/dev/null || true
         chmod -R 777 /paperclip/instances 2>/dev/null || true
+        node -e "try{const fs=require('fs'),p='$DATADIR/config.json',c=JSON.parse(fs.readFileSync(p));c.server.deploymentMode='authenticated';c.server.bind='lan';c.server.host='0.0.0.0';fs.writeFileSync(p,JSON.stringify(c,null,2))}catch(e){}" 2>/dev/null || true
         $PNPM paperclipai allowed-hostname "${PAPERCLIP_HOSTNAME:-paperclip.localhost}" -d $DATADIR 2>/dev/null || true
         umask 0000
         exec docker-entrypoint.sh node --import ./server/node_modules/tsx/dist/loader.mjs server/dist/index.js

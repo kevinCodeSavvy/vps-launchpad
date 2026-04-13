@@ -15,11 +15,11 @@ karakeep.{DOMAIN} {
 {{/if vps}}
 
 {{#if docker_desktop}}
-search.localhost {
+http://search.localhost {
   reverse_proxy searxng:8080
 }
 
-karakeep.localhost {
+http://karakeep.localhost {
   reverse_proxy karakeep:3000
 }
 {{/if docker_desktop}}
@@ -46,7 +46,7 @@ n8n.{DOMAIN} {
 {{/if n8n_vps}}
 
 {{#if n8n_docker_desktop}}
-n8n.localhost {
+http://n8n.localhost {
   reverse_proxy tailscale-n8n:5678
 }
 {{/if n8n_docker_desktop}}
@@ -61,7 +61,7 @@ paperclip.{DOMAIN} {
 {{/if paperclip_vps}}
 
 {{#if paperclip_docker_desktop}}
-paperclip.localhost {
+http://paperclip.localhost {
   reverse_proxy paperclip:3100
 }
 {{/if paperclip_docker_desktop}}
@@ -76,7 +76,7 @@ grafana.{DOMAIN} {
 {{/if monitoring_vps}}
 
 {{#if monitoring_docker_desktop}}
-grafana.localhost {
+http://grafana.localhost {
   reverse_proxy grafana:3001
 }
 {{/if monitoring_docker_desktop}}
